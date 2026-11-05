@@ -89,7 +89,7 @@ const map=L.map('map',{preferCanvas:true}).setView([39.5,-98.35],4);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 $('map-badge').textContent='Streets active';
 let origin=null,destination=null,destinationName='',originMarker=null,destinationMarker=null,locationMarker=null;
-let plans=[],chosenRoute=0,pickDestination=false,activePopup=null;
+let plans=[],chosenRoute=0,pickDestination=false,activePopup=null,manualPin=false;
 const routesLayer=L.layerGroup().addTo(map),privateLayer=L.layerGroup().addTo(map);
 function lngLatValid(v){return Array.isArray(v)&&Number.isFinite(v[0])&&Number.isFinite(v[1])&&Math.abs(v[1])<=90&&Math.abs(v[0])<=180;}
 function positionPin(p,color,label){
@@ -118,12 +118,12 @@ function navigationLinks(){
  const query=$('address').value.trim();
  // Use destination coordinates for a manually selected map pin.
  // Otherwise give native navigation the exact user-typed address, not our guessed geocoder result.
- const target=query|| (destination?[destination[1],destination[0]].join(','):null);
+ const target=(manualPin&&destination)?[destination[1],destination[0]].join(','):(query||(destination?[destination[1],destination[0]].join(','):null));
  $('apple').href=target?'https://maps.apple.com/?daddr='+encodeURIComponent(target)+'&dirflg=d':'https://maps.apple.com/';
  $('google').href=target?'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(target)+'&travelmode=driving':'https://www.google.com/maps/';
 }
 $('address').oninput=()=>{
- destination=null;destinationName='';$('preview').disabled=true;plans=[];routesLayer.clearLayers();
+ manualPin=false;destination=null;destinationName='';$('preview').disabled=true;plans=[];routesLayer.clearLayers();
  $('address-results').innerHTML='';$('routes').innerHTML='';$('steps').innerHTML='';
  $('address-fallback').hidden=true;
  if(destinationMarker){map.removeLayer(destinationMarker);destinationMarker=null;}
@@ -131,9 +131,9 @@ $('address').oninput=()=>{
  say('address-status','Tap Find address to select an exact match; Apple Maps and Google Maps links already use the complete text you entered.');
 };
 navigationLinks();
-function chooseDestination(p,label){
+function chooseDestination(p,label,chosenManually=false){
  if(!lngLatValid(p))return;
- destination=p;destinationName=label;
+ manualPin=chosenManually;destination=p;destinationName=label;
  if(destinationMarker)map.removeLayer(destinationMarker);
  destinationMarker=positionPin(p,'#f1b36e','Selected destination: '+safe(label));
  map.setView([p[1],p[0]],14);
@@ -147,7 +147,7 @@ $('pin-destination').onclick=()=>{
 };
 $('pin-center').onclick=()=>{
  const center=map.getCenter();
- chooseDestination([center.lng,center.lat],'Manually selected map pin');
+ chooseDestination([center.lng,center.lat],'Manually selected map pin',true);
  $('address-fallback').hidden=true;
  say('address-status','Destination is your manually selected map center, NOT a verified street address. Confirm the pin before routing.',true);
 };
@@ -195,9 +195,14 @@ function requestedParts(query){
  return {number:addressNumber(query),street,city,zip,state:requestedState(query)};
 }
 function roadComparable(a,b){
- // Normalize optional leading compass directions while still requiring the road name and type.
- const strip=s=>normalizeRoad(s).replace(/^(N|S|E|W|NE|NW|SE|SW) /,'');
- return normalizeRoad(a)===normalizeRoad(b)||strip(a)===strip(b);
+ // Accept missing compass direction, but never treat opposing directions as interchangeable.
+ const x=normalizeRoad(a),y=normalizeRoad(b);
+ if(x===y)return true;
+ const dir=s=>s.match(/^(NE|NW|SE|SW|N|S|E|W) /)?.[1]||'';
+ const dx=dir(x),dy=dir(y);
+ if(dx&&dy&&dx!==dy)return false;
+ const strip=s=>s.replace(/^(NE|NW|SE|SW|N|S|E|W) /,'');
+ return strip(x)===strip(y);
 }
 function validCandidate(r,q){
  if(!lngLatValid(r.ll)||!r.label)return false;
@@ -607,7 +612,7 @@ map.on('click',event=>{
    pickDestination=false;
    $('address').value='';
    navigationLinks();
-   chooseDestination([event.latlng.lng,event.latlng.lat],'Map pin: '+event.latlng.lat.toFixed(5)+', '+event.latlng.lng.toFixed(5));
+   chooseDestination([event.latlng.lng,event.latlng.lat],'Map pin: '+event.latlng.lat.toFixed(5)+', '+event.latlng.lng.toFixed(5),true);
    return;
  }
  const pt=map.latLngToContainerPoint(event.latlng);let near=null,min=Infinity;
