@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d171c">
-<title>FlockFree 0.8 | Camera Map and Navigation</title>
+<title>FlockFree 0.9 | Camera Map and Navigation</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 :root{color-scheme:dark;--bg:#0c181e;--panel:#182a32;--ink:#f3faf8;--green:#6ce1b6;--edge:#395963;--muted:#b7cdd0}
@@ -37,7 +37,7 @@ button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-v
 footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 @media(max-width:570px){.row.search input{flex-basis:100%}.row.search button{flex:1}#map{min-height:335px;height:51vh}}
 </style></head><body><main>
-<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.8</span></header>
+<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.9</span></header>
 <p class="help">Reliable street map • Auto-loading camera dots • Address lookup and real navigation links</p>
 <section>
 <div class="row between"><h2>Camera map</h2><span class="pill" id="map-badge">Map starting…</span></div>
@@ -51,10 +51,10 @@ footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 <h2>Enter destination</h2>
 <div class="row search"><input id="address" type="search" placeholder="Street address, city, state, ZIP" maxlength="160" autocomplete="street-address" aria-label="Destination address">
 <button class="primary" type="button" id="find">Find address</button></div>
-<p class="help">For Florida addresses, include FL or Florida. Review the full result before selecting it, especially the house number and state.</p>
+<p class="help">For Florida addresses, include the street number, city, FL or Florida, and ZIP. FlockFree requires these details to match before allowing a route preview. It will not guess a different street or ZIP.</p>
 <div class="navlinks"><a id="apple" class="navlink primary" target="_blank" rel="noopener noreferrer" href="https://maps.apple.com/">Navigate with Apple Maps</a>
 <a id="google" class="navlink" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/">Navigate with Google Maps</a></div>
-<p class="help">These navigation links use the destination you type and work without FlockFree's address lookup. Open them in Safari for normal GPS navigation.</p>
+<p class="help">These navigation links use the destination you type and work without FlockFree's address lookup. Address searches also use U.S. Census and OpenStreetMap services. Open them in Safari for normal GPS navigation.</p>
 <div id="address-status" role="status">Type a destination and tap Find address, or tap a destination on the map.</div>
 <div id="address-results"></div><hr>
 <div class="row between"><span class="help" id="origin-label">Start: use My location or map center</span><button id="use-center">Start at map center</button></div>
@@ -65,7 +65,7 @@ footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 </section>
 <section><h2>Camera information</h2><div id="details">Tap a small camera marker to inspect a public record. At wider zoom levels, a tap may zoom in to provide details.</div></section>
 <section><h2>Privacy</h2><p class="help">Geolocation stays in this browser session. Streets, camera tiles, address searches, and routing use external services. Personal camera reports are saved only in this browser. FlockFree does not store a trip history.</p></section>
-<footer>FlockFree v0.8 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
+<footer>FlockFree v0.9 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -142,65 +142,174 @@ function requestedState(text){
  }
  return null;
 }
+
 function addressNumber(s){return (s.match(/^\s*(\d+[A-Za-z]?)\b/)||[])[1]||'';}
+const abbrToState=states;
+function sameState(a,b){
+ if(!b)return true;
+ const norm=x=>{const t=String(x||'').trim().toUpperCase();return abbrToState[t]?abbrToState[t].toUpperCase():t;};
+ return norm(a)===norm(b);
+}
+function normalizeRoad(s){
+ return String(s||'').toUpperCase()
+  .replace(/\bNORTHEAST\b/g,'NE').replace(/\bNORTHWEST\b/g,'NW')
+  .replace(/\bSOUTHEAST\b/g,'SE').replace(/\bSOUTHWEST\b/g,'SW')
+  .replace(/\bNORTH\b/g,'N').replace(/\bSOUTH\b/g,'S')
+  .replace(/\bEAST\b/g,'E').replace(/\bWEST\b/g,'W')
+  .replace(/\bAVENUE\b/g,'AVE').replace(/\bBOULEVARD\b/g,'BLVD')
+  .replace(/\bSTREET\b/g,'ST').replace(/\bROAD\b/g,'RD')
+  .replace(/\bDRIVE\b/g,'DR').replace(/\bLANE\b/g,'LN')
+  .replace(/\bCOURT\b/g,'CT').replace(/\bPLACE\b/g,'PL')
+  .replace(/\bCIRCLE\b/g,'CIR').replace(/\bPARKWAY\b/g,'PKWY')
+  .replace(/\bHIGHWAY\b/g,'HWY').replace(/\bTERRACE\b/g,'TER')
+  .replace(/\b(\d+)(?:ST|ND|RD|TH)\b/g,'$1')
+  .replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+}
+function requestedParts(query){
+ const split=query.split(',').map(s=>s.trim()).filter(Boolean);
+ const street=addressNumber(query)?split[0].replace(/^\s*\d+[A-Za-z]?\s*/,''):null;
+ const city=split.length>=3?split[1]:null;
+ const zip=(query.match(/\b\d{5}(?:-\d{4})?\b/)||[])[0]?.slice(0,5)||'';
+ return {number:addressNumber(query),street,city,zip,state:requestedState(query)};
+}
+function validCandidate(r,q){
+ if(!lngLatValid(r.ll)||!r.label)return false;
+ if(q.state&&!sameState(r.state,q.state))return false;
+ // If the user gave a ZIP, a different ZIP or a missing ZIP must not be accepted.
+ if(q.zip&&r.zip!==q.zip)return false;
+ if(q.number&&String(r.number).toUpperCase()!==q.number.toUpperCase())return false;
+ // When a street address was supplied, do not silently route to a city centre or another road.
+ if(q.street&&normalizeRoad(q.street)!==normalizeRoad(r.road))return false;
+ // City is only required when ZIP is absent, to allow unincorporated postal-city names.
+ if(q.city&&!q.zip&&normalizeRoad(q.city)!==normalizeRoad(r.city))return false;
+ return true;
+}
 function standardize(items,provider){
  if(!Array.isArray(items))return [];
- if(provider==='nominatim')return items.map(x=>({label:x.display_name||'',state:x.address?.state||'',zip:x.address?.postcode||'',number:x.address?.house_number||'',ll:[Number(x.lon),Number(x.lat)]}));
- return items.map(x=>({label:[x.properties?.housenumber,x.properties?.street,x.properties?.city,x.properties?.state,x.properties?.postcode].filter(Boolean).join(', '),state:x.properties?.state||'',zip:x.properties?.postcode||'',number:x.properties?.housenumber||'',ll:[Number(x.geometry?.coordinates?.[0]),Number(x.geometry?.coordinates?.[1])]}));
+ if(provider==='census'){
+   return items.map(x=>{
+     const a=x.addressComponents||{};
+     return {
+       label:x.matchedAddress||'',
+       state:a.state||'',zip:a.zip||'',city:a.city||'',
+       number:(x.matchedAddress||'').match(/^\s*(\d+[A-Za-z]?)\b/)?.[1]||'',
+       road:[a.preDirection,a.preType,a.streetName,a.suffixType,a.suffixDirection].filter(Boolean).join(' '),
+       ll:[Number(x.coordinates?.x),Number(x.coordinates?.y)],provider:'U.S. Census',
+       estimate:true
+     };
+   });
+ }
+ if(provider==='nominatim')return items.map(x=>{
+   const a=x.address||{};
+   return {
+     label:x.display_name||'',state:a.state||'',zip:(a.postcode||'').slice(0,5),
+     city:a.city||a.town||a.village||a.hamlet||'',
+     number:a.house_number||'',
+     road:a.road||a.pedestrian||a.residential||a.street||a.highway||'',
+     ll:[Number(x.lon),Number(x.lat)],provider:'OpenStreetMap',estimate:false
+   };
+ });
+ return items.map(x=>{
+   const a=x.properties||{};
+   return {
+     label:[a.housenumber,a.street,a.city,a.state,a.postcode].filter(Boolean).join(', '),
+     state:a.state||'',zip:(a.postcode||'').slice(0,5),
+     city:a.city||'',number:a.housenumber||'',road:a.street||'',
+     ll:[Number(x.geometry?.coordinates?.[0]),Number(x.geometry?.coordinates?.[1])],
+     provider:'Photon',estimate:false
+   };
+ });
+}
+// The Census geocoder does not support cross-origin JSON fetch.
+// Its documented JSONP callback can be requested from a static GitHub Pages site.
+function censusLookup(query){
+ return new Promise((resolve,reject)=>{
+   const name='flockFreeCensus'+Date.now()+Math.floor(Math.random()*100000);
+   const script=document.createElement('script');
+   let settled=false;
+   const finish=(result,error)=>{
+     if(settled)return;
+     settled=true;clearTimeout(timer);
+     script.remove();
+     try{delete window[name];}catch(e){window[name]=undefined;}
+     if(error)reject(error);else resolve(result);
+   };
+   const timer=setTimeout(()=>finish(null,new Error('Census lookup timeout')),7000);
+   window[name]=(data)=>finish(data?.result?.addressMatches||[]);
+   script.onerror=()=>finish(null,new Error('Census lookup failed'));
+   script.src='https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+
+     encodeURIComponent(query)+'&benchmark=Public_AR_Current&format=jsonp&callback='+name;
+   document.head.appendChild(script);
+ });
+}
+async function nominatimLookup(query){
+ const c=new AbortController(),t=setTimeout(()=>c.abort(),9500);
+ try{
+   const url='https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&addressdetails=1&limit=10&q='+encodeURIComponent(query);
+   const res=await fetch(url,{signal:c.signal,headers:{Accept:'application/json'}});
+   if(!res.ok)throw new Error('OSM address status '+res.status);
+   return await res.json();
+ }finally{clearTimeout(t);}
+}
+async function photonLookup(query){
+ const c=new AbortController(),t=setTimeout(()=>c.abort(),8500);
+ try{
+   const url='https://photon.komoot.io/api/?q='+encodeURIComponent(query)+'&limit=10&lang=en';
+   const res=await fetch(url,{signal:c.signal});
+   if(!res.ok)throw new Error('Photon address status '+res.status);
+   const json=await res.json();
+   return json.features||[];
+ }finally{clearTimeout(t);}
 }
 let candidates=[];
 $('find').onclick=async()=>{
  const query=$('address').value.trim();
- if(!query){say('address-status','Type a complete street address, including city and state.',true);return;}
- $('find').disabled=true;candidates=[];$('address-results').innerHTML='';destination=null;$('preview').disabled=true;
- say('address-status','Finding address matches. Please confirm the house number, city and state before routing.');
+ if(!query){say('address-status','Enter a street address and city, state, and ZIP code.',true);return;}
+ const requested=requestedParts(query);
+ $('find').disabled=true;
+ candidates=[];destination=null;destinationName='';$('preview').disabled=true;
+ plans=[];routesLayer.clearLayers();$('routes').innerHTML='';$('steps').innerHTML='';
+ $('address-results').innerHTML='';
+ if(destinationMarker){map.removeLayer(destinationMarker);destinationMarker=null;}
+ say('address-status','Checking house number, street, state, and ZIP. Unverified matches will not be used for routing.');
  try{
-   let results=[],source='';
-   const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),13000);
-   try{
-     const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&addressdetails=1&limit=10&q='+encodeURIComponent(query),{signal:ctrl.signal,headers:{Accept:'application/json'}});
-     if(r.ok){results=standardize(await r.json(),'nominatim');source='OpenStreetMap';}
-   }catch(err){console.warn('Geocoder 1 unavailable',err);}
-   finally{clearTimeout(timer);}
-   if(!results.length){
-     const ctrl2=new AbortController(),t2=setTimeout(()=>ctrl2.abort(),12000);
-     try{
-       const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(query)+'&limit=10&lang=en',{signal:ctrl2.signal});
-       if(r.ok){const data=await r.json();results=standardize(data.features||[],'photon');source='Photon';}
-     }catch(e){console.warn('Geocoder 2 unavailable',e);}
-     finally{clearTimeout(t2);}
+   const outcomes=await Promise.allSettled([
+     censusLookup(query),nominatimLookup(query)
+   ]);
+   let results=[];
+   if(outcomes[0].status==='fulfilled')results.push(...standardize(outcomes[0].value,'census'));
+   if(outcomes[1].status==='fulfilled')results.push(...standardize(outcomes[1].value,'nominatim'));
+   // Photon is a fallback, not a reason to accept mismatched addresses.
+   if(!results.some(r=>validCandidate(r,requested))){
+     try{results.push(...standardize(await photonLookup(query),'photon'));}catch(e){console.warn('Address fallback unavailable',e);}
    }
-   const state=requestedState(query);
-   if(state)results=results.filter(r=>r.state.toLowerCase()===state.toLowerCase());
-   const zip=(query.match(/\b\d{5}\b/)||[])[0];
-   if(zip){
-     const matching=results.filter(r=>r.zip===zip);
-     if(matching.length)results=matching;
-   }
-   const seen=new Set();
+   const found=new Set();
    candidates=results.filter(r=>{
-     if(!lngLatValid(r.ll)||!r.label)return false;
-     const k=r.ll.map(v=>v.toFixed(5)).join(',');
-     if(seen.has(k))return false;seen.add(k);return true;
+     if(!validCandidate(r,requested))return false;
+     const key=r.ll.map(n=>n.toFixed(6)).join(',');
+     if(found.has(key))return false;
+     found.add(key);return true;
    }).slice(0,6);
    if(!candidates.length){
-     say('address-status','No reliable address match found'+(state?' in '+state:'')+'. Use Apple Maps above, or select a destination on the map.',true);
+     say('address-status','No sufficiently verified match for this address. FlockFree will NOT route to a guessed location. Use Apple Maps above, or choose the exact destination on the map.',true);
      return;
    }
-   const n=addressNumber(query);
-   $('address-results').innerHTML='<p class="help"><strong>Confirm one of these locations:</strong></p>'+candidates.map((r,i)=>{
-     const precise=!n||r.number.toLowerCase()===n.toLowerCase();
-     return '<button class="choice" data-address="'+i+'" type="button"><strong>'+safe(r.label)+'</strong><small>'+safe(r.state||'State unspecified')+' · '+(precise?'Match candidate':'House number NOT verified — check map pin')+'</small></button>';
-   }).join('');
+   $('address-results').innerHTML='<p class="help"><strong>Matching addresses — tap to review the pin:</strong></p>'+
+     candidates.map((r,i)=>'<button class="choice" type="button" data-address="'+i+'"><strong>'+safe(r.label)+'</strong><small>'+
+       safe(r.provider)+(r.estimate?' · Estimated point along the road, not the building':' · Address record')+
+       ' · ZIP '+safe(r.zip||'not provided')+'</small></button>').join('');
    $('address-results').querySelectorAll('[data-address]').forEach(button=>button.onclick=()=>{
-     const r=candidates[Number(button.dataset.address)],exact=!n||r.number.toLowerCase()===n.toLowerCase();
+     const r=candidates[Number(button.dataset.address)];
      $('address-results').querySelectorAll('[data-address]').forEach(b=>b.classList.toggle('active',b===button));
      chooseDestination(r.ll,r.label);
-     if(!exact)say('address-status','This result does not verify house number '+n+'. Review the pin; use Apple Maps for a precise driving destination.',true);
+     say('address-status','Address components matched. '+(r.estimate?
+       'Census coordinates are estimated along the street, not the exact driveway. Check the pin before previewing.':
+       'Check the displayed destination pin before previewing.')+' For regular driving navigation, use Apple Maps.',r.estimate);
    });
-   say('address-status',candidates.length+' address option(s) found using '+source+'. Tap the one in the correct city and state.');
- }catch(e){say('address-status','Address lookup unavailable. Apple Maps and Google Maps links above remain usable.',true);}
- finally{$('find').disabled=false;}
+   say('address-status',candidates.length+' verified address candidate(s). Tap the matching one and inspect its pin.');
+ }catch(e){
+   say('address-status','Address verification is unavailable right now. Apple Maps and Google Maps above can still use the full address you typed.',true);
+ }finally{$('find').disabled=false;}
 };
 const metres=m=>m>=1609.344?(m/1609.344).toFixed(1)+' miles':Math.max(10,Math.round(m*3.28084/10)*10)+' feet';
 function turnText(step){const m=step.maneuver||{},t=m.type||'',dir=m.modifier||'',road=step.name?' onto '+step.name:'';
