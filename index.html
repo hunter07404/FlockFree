@@ -165,6 +165,7 @@ map.on('error',e=>{
 map.on('click',e=>{
  if(!pinsMode)return;
  pinsMode=false;$('map-mode').textContent='';
+ $('address').value='';
  chooseDestination(e.lngLat.toArray(),'Map pin: '+e.lngLat.lat.toFixed(5)+', '+e.lngLat.lng.toFixed(5));
 });
 let reports=[];
@@ -230,7 +231,7 @@ function linkAddress(){
  // Important: pass the originally typed full address to the native mapping app,
  // not the coordinates from a potentially imprecise prototype geocoder.
  const value=$('address').value.trim();
- const target=destination&&!value?destination.join(','):value;
+ const target=destination&&!value?[destination[1],destination[0]].join(','):value;
  $('apple').href='https://maps.apple.com/?daddr='+encodeURIComponent(target)+'&dirflg=d';
  $('google').href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(target)+'&travelmode=driving';
 }
@@ -287,8 +288,9 @@ async function searchAddresses(query){
    const k=x.coords.map(v=>v.toFixed(5)).join(',');
    if(uniq.has(k))return false;uniq.add(k);return true;
  }).slice(0,6);
- if(candidates.length)searchCache.set(query,candidates);
- return {candidates,reason,state};
+ const results={candidates,reason,state};
+ if(candidates.length)searchCache.set(query,results);
+ return results;
 }
 function chooseDestination(coords,label){
  if(!validLoc(coords))return;
