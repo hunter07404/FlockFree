@@ -1,373 +1,388 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0d171c">
-<title>FlockFree 0.6 | Map & Navigation Beta</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c181d"><title>FlockFree 0.7 | Camera Map and Directions</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
-:root{color-scheme:dark;--bg:#0d171c;--card:#17272e;--green:#6ce1b6;--muted:#b8cbd0;--edge:#36545e}
-*{box-sizing:border-box}body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f4fcf9;background:var(--bg)}
-main{max-width:1000px;padding:13px 12px 32px;margin:auto}
-header{display:flex;align-items:center;justify-content:space-between;gap:9px}h1{font-size:26px;margin:0;letter-spacing:-.8px}h1 span{color:var(--green)}
-.pill{font-size:11px;font-weight:800;border:1px solid #517b67;color:#a5eccc;background:#19352e;padding:5px 9px;border-radius:30px}
-.help{font-size:12px;line-height:1.5;color:var(--muted)}h2{font-size:17px;margin:2px 0 9px}
-section{border:1px solid #2e4c55;background:var(--card);padding:13px;border-radius:16px;margin:13px 0}
-.row{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
-.row.between{justify-content:space-between}
-input{min-width:0;flex:1 1 165px;padding:12px;border-radius:11px;background:#0d2028;color:#fff;border:1px solid #55717a;font-size:16px}
-button{min-height:41px;padding:9px 12px;border-radius:10px;border:1px solid #54707a;background:#29434b;color:#fff;font-weight:700;cursor:pointer;font-size:14px}
-button.primary{background:var(--green);border-color:var(--green);color:#06241b}
-button.secondary{border-color:#74b3a1;color:#bcf7e3}
-button:disabled{opacity:.5}button:focus-visible,input:focus-visible{outline:3px solid #94dfc2;outline-offset:2px}
-#map{height:53vh;min-height:345px;max-height:570px;background:#294148;border:1px solid #4a676f;border-radius:13px}
-.leaflet-container{background:#294148}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#17333b;color:white}.leaflet-control-attribution{color:#222!important}
-#camera-message,#route-message,#nav-message{background:#112832;border:1px solid #405e69;border-radius:10px;padding:10px;margin:9px 0;font-size:13px;line-height:1.5}
-.warning{color:#ffd4a7!important;border-color:#956f43!important}
-#destination-matches{display:grid;gap:7px;margin-top:9px}
-.choice{display:block;text-align:left;width:100%;white-space:normal;border-radius:10px;line-height:1.5;background:#203840;color:#e7f8f4;font-weight:600}
-.choice small{display:block;font-size:12px;font-weight:400;color:#bad0d3;margin-top:3px}
-.choice.selected{border-color:var(--green);background:#1b3d34}
-#routes{display:grid;gap:7px;margin-top:10px}
-#nav-card{border:1px solid #658c7b;background:#163930;padding:13px;border-radius:12px;margin-top:10px}
-#next-turn{font-size:19px;font-weight:760;margin:4px 0}
-#next-distance{font-size:14px;color:#bdf1dd}
-#instruction-list{padding-left:22px;margin:10px 0;max-height:180px;overflow:auto;font-size:13px;color:#bcd2d4}
-#instruction-list li{padding:4px 0}#instruction-list li.current{color:#83ebbc;font-weight:700}
-.divider{height:1px;background:#38525a;margin:12px 0}
-.legend{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0;font-size:12px;color:#bad0ce}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
-#details{font-size:14px;min-height:50px;overflow-wrap:anywhere}a{color:#a1dcf4}
-footer{font-size:12px;color:#9cb3b9;text-align:center;margin:20px 0}
-@media(max-width:540px){#map{height:51vh;min-height:330px}.row.tight input{flex-basis:100%}.row.tight button{flex:1}.actionbar button{flex:1 1 40%}h1{font-size:24px}}
-</style>
-</head>
-<body><main>
-<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.6</span></header>
-<p class="help">Fast public camera map • Exact destination confirmation • GPS guidance preview</p>
+:root{color-scheme:dark;--bg:#0d171d;--panel:#192a32;--green:#65dfb3;--edge:#385762;--text:#f0faf8;--muted:#b2cad0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+main{max-width:950px;margin:auto;padding:14px 12px 35px}header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+h1{margin:0;font-size:26px;letter-spacing:-.8px}h1 span{color:var(--green)}
+.tag{font-size:11px;color:#bff3dc;background:#1d3d34;border:1px solid #52816b;border-radius:50px;padding:5px 10px;font-weight:800}
+h2{font-size:17px;margin:0 0 11px}section{background:var(--panel);border:1px solid #304f5a;border-radius:17px;padding:12px;margin:13px 0}
+p{margin:9px 0}.muted{color:var(--muted);font-size:12px;line-height:1.55}
+button{font:inherit;cursor:pointer;min-height:42px;background:#2d4751;border:1px solid #5b7480;color:white;border-radius:11px;padding:10px 12px;font-weight:700}
+button.primary{color:#09251e;background:var(--green);border-color:var(--green)}
+button:disabled{opacity:.48;cursor:not-allowed}button:focus-visible,input:focus-visible{outline:3px solid #8ceac4;outline-offset:2px}
+input{min-width:0;flex:1 1 185px;font:inherit;font-size:16px;border-radius:11px;border:1px solid #5c747c;background:#102028;color:white;padding:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row.tight button{flex:1}.row.between{justify-content:space-between}
+#map{height:52vh;min-height:330px;max-height:560px;background:#2c4850;border-radius:12px;overflow:hidden}
+#map .maplibregl-popup-content{background:#17333c;color:white;border-radius:11px;padding:12px 13px;max-width:290px;line-height:1.5}
+#map .maplibregl-popup-anchor-bottom .maplibregl-popup-tip{border-top-color:#17333c}
+#map .maplibregl-popup-close-button{color:white;font-size:19px;padding:5px}
+#map .maplibregl-ctrl-attrib{background:#e4eeec;color:#172528}
+#camera-status,#address-status,#route-status{border:1px solid #42616a;background:#102630;border-radius:10px;padding:10px 11px;min-height:40px;margin-top:10px;font-size:13px}
+.warn{color:#ffd5a8!important;border-color:#936c3e!important}
+#address-results,#routes{display:grid;gap:8px;margin-top:9px}
+.choice{text-align:left;width:100%;display:block;background:#203a43;border:1px solid #51717b;border-radius:11px;padding:11px 12px;line-height:1.5;white-space:normal}
+.choice strong{display:block;font-size:14px}.choice small{display:block;font-size:12px;font-weight:500;color:#b8d1d4;margin-top:3px}
+.choice.active{background:#174438;border-color:var(--green)}
+#native-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+#native-nav a{display:inline-flex;align-items:center;justify-content:center;flex:1;min-height:45px;background:var(--green);border-radius:11px;padding:9px 13px;color:#08271e;text-decoration:none;font-weight:800;text-align:center}
+#native-nav a.secondary{background:#2b4955;color:white;border:1px solid #65818a}
+#details{min-height:55px;word-wrap:break-word;font-size:14px;line-height:1.6}
+.legend{display:flex;gap:13px;flex-wrap:wrap;font-size:12px;color:#b8ccce;margin:9px 0}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px}
+#map-mode{font-size:12px;color:#c3efdc}
+#instructions{max-height:200px;overflow:auto;padding-left:22px;font-size:13px;color:#d1e5e6}
+#instructions li{padding:4px 0}
+hr{border:none;border-top:1px solid #3b5962;margin:13px 0}
+footer{font-size:12px;text-align:center;color:#9db8bc;margin:22px 0}
+a{color:#91d9ed} 
+@media(max-width:580px){#map{height:50vh;min-height:320px}.row.tight input{flex-basis:100%}.row.tight button{flex:1}.actionbar button{flex:1 1 42%}h1{font-size:24px}}
+</style></head><body><main>
+<header><h1>⬡ Flock<span>Free</span></h1><span class="tag">BETA 0.7</span></header>
+<p class="muted">Public ALPR map • Small selectable camera markers • Confirm addresses before planning a trip</p>
 <section>
-<div class="row between"><h2>Camera map</h2><span id="layer-indicator" class="pill">Loading camera layer…</span></div>
-<div id="map" role="application" aria-label="Interactive street and camera map"></div>
-<div class="legend"><span><i class="dot" style="background:#6ce1b6"></i>Flock-tagged</span><span><i class="dot" style="background:#ffbb7b"></i>Other mapped ALPR</span><span><i class="dot" style="background:#93b5ff"></i>Private report</span></div>
+<div class="row between"><h2>Camera map</h2><span class="tag" id="camera-tag">Connecting…</span></div>
+<div id="map" role="application" aria-label="Interactive map showing public ALPR camera reports"></div>
+<div class="legend">
+<span><i class="dot" style="background:#65dfb3"></i>Flock-tagged ALPR</span>
+<span><i class="dot" style="background:#f4b875"></i>Other mapped ALPR</span>
+<span><i class="dot" style="background:#8cb6ff"></i>Your report</span></div>
 <div class="row actionbar">
-<button class="primary" id="my-location" type="button">My location</button>
-<button id="report" type="button">Report at map center</button>
-<button id="clear-reports" type="button">Clear my reports</button>
+<button class="primary" type="button" id="locate">My location</button>
+<button type="button" id="choose-pin">Pick destination on map</button>
+<button type="button" id="report">Report camera</button>
 </div>
-<div id="camera-message" role="status" aria-live="polite">Camera markers load automatically with the map when the public tile service is available. No minimum zoom or manual lookup required.</div>
-<p class="help">Camera layer: <a href="https://github.com/flockhopper3/deflock-data" target="_blank" rel="noopener noreferrer">FlockHopper open ALPR map data</a>, derived from OpenStreetMap. Reports are voluntary and may be incomplete or outdated. A blank area does not establish there are no cameras. Camera tile service availability is not guaranteed.</p>
+<div id="camera-status" role="status" aria-live="polite">Camera markers should appear automatically at all zoom levels. Tap individual dots for details; zoom in for a clearer view.</div>
+<p class="muted">Camera feed: <a href="https://github.com/flockhopper3/deflock-data" target="_blank" rel="noopener noreferrer">OpenStreetMap-derived public ALPR tiles</a>. Data may be missing, outdated or inaccurate. A camera-free route cannot be guaranteed.</p>
+<div id="map-mode"></div>
 </section>
 <section>
-<h2>Where do you want to go?</h2>
+<h2>Find a destination</h2>
 <div class="row tight">
-<input type="search" id="destination" maxlength="140" placeholder="Street address, city, state & ZIP" aria-label="Destination address" autocomplete="street-address">
+<input id="address" type="search" aria-label="Destination street address" placeholder="Street number, street, city, state, ZIP" maxlength="160">
 <button class="primary" id="find" type="button">Find address</button>
 </div>
-<p class="help">Enter city and state for best results. We will show matching addresses and states for you to confirm. Never select a destination solely from the first result.</p>
-<div id="destination-matches" aria-live="polite"></div>
-<div class="divider"></div>
-<div class="row between"><span id="origin-label" class="help">Start: use My location or choose map center</span><button id="use-center" type="button">Use map center</button></div>
-<div class="row actionbar" style="margin-top:10px"><button class="primary" id="calculate" disabled type="button">Calculate driving routes</button></div>
-<div id="route-message" role="status">Confirm a destination above to calculate directions.</div>
+<p class="muted">Enter the complete address, including Florida or FL if that's the state. Check the results below. You can also navigate using Apple Maps without relying on this prototype's address search.</p>
+<div id="native-nav">
+<a id="apple" href="https://maps.apple.com/" target="_blank" rel="noopener noreferrer">Open Apple Maps directions</a>
+<a class="secondary" id="google" href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer">Google Maps directions</a>
+</div>
+<div id="address-status" role="status">Type a destination, then tap Find address. You must select a matching result before previewing a FlockFree route.</div>
+<div id="address-results"></div>
+<hr>
+<div class="row between"><span class="muted" id="origin-label">Starting point: choose My location or map center</span><button id="start-center" type="button">Start at map center</button></div>
+<div class="row" style="margin-top:9px"><button id="preview" class="primary" type="button" disabled>Preview driving route</button></div>
+<div id="route-status" role="status">Select a destination and starting point to preview a route.</div>
 <div id="routes"></div>
-<div id="nav-card" hidden>
-<strong>GPS navigation preview</strong>
-<p id="next-turn">Choose a route to begin</p>
-<div id="next-distance">—</div>
-<div class="row actionbar" style="margin-top:10px">
-<button class="primary" id="start" type="button">Start GPS guidance</button>
-<button id="stop" type="button" disabled>Stop</button>
-<button id="voice" type="button" aria-pressed="true">Voice: On</button>
-</div>
-<div id="nav-message" role="status">Test while parked or as a passenger. Not a substitute for a production navigation app.</div>
-<ol id="instruction-list"></ol>
-</div>
-<p class="help">Routing uses public OSRM test infrastructure. No live traffic, background-navigation guarantee, automatic rerouting, or validated camera-avoidance route yet. Never rely on this prototype for safe driving directions.</p>
+<ol id="instructions"></ol>
+<p class="muted">FlockFree shows driving route previews and step lists; it does not yet provide production-grade turn-by-turn voice navigation, live traffic or automatic rerouting. For actual driving, use Apple Maps or Google Maps above. Directions providers may retain location and search information.</p>
 </section>
-<section><h2>Selected camera</h2><div id="details">Tap a camera marker to see its public source details.</div></section>
-<section><h2>Privacy</h2><p class="help">Your location stays in this browser's current session. Map, geocoding, routing, and camera-tile requests go to their respective external services. Your personal camera reports are kept locally on this device. No account or route history is stored by FlockFree.</p></section>
-<footer>FlockFree 0.6 • © OpenStreetMap contributors (ODbL) • Experimental navigation only</footer>
+<section><h2>Camera details</h2><div id="details">Tap a small camera dot on the map for its reported properties and source link.</div></section>
+<section><h2>Privacy and testing</h2><p class="muted">Camera map requests, geocoding and route previews use third-party services. FlockFree does not store a trip history. Personal reports are stored only on this device and are not published. This is an experimental prototype, not a primary driving navigation system.</p></section>
+<footer>FlockFree v0.7 · Map and ALPR data © OpenStreetMap contributors · ALPR locations are volunteer reports</footer>
 </main>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const say=(id,msg,warn=false)=>{const e=$(id);e.textContent=msg;e.classList.toggle('warning',warn);};
-const safe=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-if(!window.L){say('camera-message','Unable to load map library. Check connectivity and refresh.',true);return;}
-const map=L.map('map',{preferCanvas:true}).setView([39.4,-98.4],4);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
- maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
-const reportLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map);
-let positionMarker=null,originMarker=null,destMarker=null,origin=null,dest=null,candidates=[],routes=[],selectedRoute=0;
-let gpsWatch=null,navStepIndex=0,voiceEnabled=true,lastSpoken=-1,lastGps=null;
-const reportKey='flockfree_private_reports_v02';
+const say=(id,s,w=false)=>{const el=$(id);el.textContent=s;el.classList.toggle('warn',!!w);};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+const validLoc=([lng,lat])=>Number.isFinite(lng)&&Number.isFinite(lat)&&Math.abs(lat)<=90&&Math.abs(lng)<=180;
+if(!window.maplibregl||!maplibregl.supported()){say('camera-status','This browser cannot run the new vector map. Try opening the page directly in Safari.',true);$('camera-tag').textContent='Map unavailable';return;}
+const geoLayer={type:'FeatureCollection',features:[]};
+const map=new maplibregl.Map({
+ container:'map',
+ center:[-98.35,39.5],zoom:3.6,
+ style:{version:8,sources:{
+   streets:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,maxzoom:19,
+     attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
+ },layers:[{id:'streets',type:'raster',source:'streets'}]},
+ attributionControl:true
+});
+map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");
+let origin=null,destination=null,selectedAddress='',selectedRoutes=[],routeIndex=0;
+let locationMarker=null,originMarker=null,destinationMarker=null;
+let pinsMode=false,pubReady=false;
+const marker=(coords,color)=>new maplibregl.Marker({color}).setLngLat(coords).addTo(map);
+const repoSource='https://tiles.dontgetflocked.com/cameras-us-hourly.json';
+const cameraColor=['case',['any',
+ ['in','flock',['downcase',['to-string',['coalesce',['get','brand'],'']]]],
+ ['in','flock',['downcase',['to-string',['coalesce',['get','operator'],'']]]]],
+ '#65dfb3','#f4b875'];
+function addCameras(){
+ try{
+   map.addSource('alpr',{type:'vector',url:repoSource});
+   map.addLayer({id:'camera-far',type:'circle',source:'alpr','source-layer':'cameras',maxzoom:11,
+     paint:{'circle-color':'#74d9b0','circle-radius':['interpolate',['linear'],['zoom'],3,1,8,2.2,11,3.2],
+       'circle-opacity':0.65,'circle-stroke-width':0}});
+   map.addLayer({id:'camera-points',type:'circle',source:'alpr','source-layer':'cameras',minzoom:10.6,
+     paint:{'circle-color':cameraColor,'circle-radius':['interpolate',['linear'],['zoom'],10.6,4,13,6,17,7],
+       'circle-stroke-color':'#173039','circle-stroke-width':2,'circle-opacity':.95}});
+   map.on('click','camera-points',event=>{
+     const feature=event.features&&event.features[0];
+     if(!feature)return;
+     const p=feature.properties||{};
+     const coords=feature.geometry&&feature.geometry.coordinates?feature.geometry.coordinates:event.lngLat.toArray();
+     const brand=String(p.brand||p.manufacturer||p.operator||'Not specified');
+     const id=p.osmId||p.osm_id||'';
+     const kind=/flock/i.test(brand)?'Flock-tagged record':'Public ALPR report';
+     let info='<strong>'+esc(kind)+'</strong><div>Brand / operator: '+esc(brand)+'</div>';
+     if(p.direction)info+='<div>Reported direction: '+esc(p.direction)+'</div>';
+     if(id)info+='<div><a target="_blank" rel="noopener noreferrer" href="https://www.openstreetmap.org/node/'+encodeURIComponent(id)+'">Original OSM record</a></div>';
+     info+='<small>Unverified volunteer report</small>';
+     new maplibregl.Popup({offset:10,maxWidth:'290px'}).setLngLat(coords).setHTML(info).addTo(map);
+     $('details').innerHTML=info;
+   });
+   map.on('mouseenter','camera-points',()=>{map.getCanvas().style.cursor='pointer';});
+   map.on('mouseleave','camera-points',()=>{map.getCanvas().style.cursor='';});
+   map.on('sourcedata',e=>{
+     if(e.sourceId==='alpr'&&e.isSourceLoaded&&!pubReady){
+       pubReady=true;
+       $('camera-tag').textContent='Camera tiles active';
+       say('camera-status','Camera tile feed connected. Markers stay small when zooming, and you can tap each dot for source details.');
+     }
+   });
+   $('camera-tag').textContent='Camera tiles loading';
+ }catch(error){$('camera-tag').textContent='Camera feed failed';say('camera-status','Camera feed could not be loaded. Streets and directions are still available.',true);}
+}
+map.on('load',()=>{
+ map.addSource('routes',{type:'geojson',data:geoLayer});
+ map.addLayer({id:'route-preview-outline',type:'line',source:'routes',paint:{'line-color':'#153b45','line-width':9}});
+ map.addLayer({id:'route-preview-line',type:'line',source:'routes',paint:{'line-color':'#66dfb5','line-width':5}});
+ addCameras();
+});
+map.on('error',e=>{
+ const msg=String((e.error&&e.error.message)||'');
+ if(/camera|cameras-us-hourly|dontgetflocked/i.test(msg)){
+   say('camera-status','Camera tiles are temporarily unavailable. Streets and navigation links are still usable.',true);
+   $('camera-tag').textContent='Camera feed unavailable';
+ }
+});
+map.on('click',e=>{
+ if(!pinsMode)return;
+ pinsMode=false;$('map-mode').textContent='';
+ chooseDestination(e.lngLat.toArray(),'Map pin: '+e.lngLat.lat.toFixed(5)+', '+e.lngLat.lng.toFixed(5));
+});
 let reports=[];
-try{reports=JSON.parse(localStorage.getItem(reportKey)||'[]').filter(r=>Number.isFinite(r.lat)&&Number.isFinite(r.lon)).slice(-100);}catch(e){}
+try{const old=JSON.parse(localStorage.getItem('flockfree_private_reports_v02')||'[]');if(Array.isArray(old))reports=old.filter(x=>validLoc([x.lon,x.lat])).slice(-100);}catch(e){}
+const reportMarkers=[];
 function drawReports(){
- reportLayer.clearLayers();
- reports.forEach(r=>L.circleMarker([r.lat,r.lon],{radius:9,weight:2,color:'#fff',fillColor:'#93b5ff',fillOpacity:1}).on('click',()=>{
-  $('details').innerHTML='<strong>Private, unverified report</strong><p>'+safe(r.note||'Camera report')+'</p><p class="help">Saved in this browser only, not submitted publicly.</p>';
- }).addTo(reportLayer));
+ reportMarkers.forEach(x=>x.remove());reportMarkers.length=0;
+ reports.forEach(p=>{
+   const m=marker([p.lon,p.lat],'#8cb6ff');
+   m.getElement().addEventListener('click',()=>{
+     const html='<b>Unverified private report</b><div>'+esc(p.note||'No note')+'</div><small>Saved only on this device</small>';
+     $('details').innerHTML=html;
+   });
+   reportMarkers.push(m);
+ });
 }
 drawReports();
 $('report').onclick=()=>{
- const p=map.getCenter(),note=prompt('Private camera report note (optional):','');
+ const p=map.getCenter(),note=prompt('Optional note for private camera report:','');
  if(note===null)return;
- reports.push({lat:p.lat,lon:p.lng,note:note.trim().slice(0,160),mine:true,created:Date.now()});
- reports=reports.slice(-100);
- try{localStorage.setItem(reportKey,JSON.stringify(reports));}catch(e){}
- drawReports();say('camera-message','Your unverified personal report was saved locally. Not shared publicly.');
+ reports.push({lat:p.lat,lon:p.lng,note:note.slice(0,120).trim(),mine:true,created:Date.now()});
+ reports=reports.slice(-100);try{localStorage.setItem('flockfree_private_reports_v02',JSON.stringify(reports));}catch(e){}
+ drawReports();say('camera-status','Unverified report saved only on your device.');
 };
-$('clear-reports').onclick=()=>{
- if(!confirm('Delete your private camera reports from this browser?'))return;
- reports=[];try{localStorage.removeItem(reportKey);}catch(e){}
- drawReports();say('camera-message','Private reports cleared.');
-};
-// Vector tiles replace the previous slow, per-area Overpass queries.
-// Cameras appear at any zoom level as tiles arrive, without a separate load button.
-if(L.vectorGrid&&L.vectorGrid.protobuf){
- const cameraUrl='https://tiles.dontgetflocked.com/cameras-us-hourly/{z}/{x}/{y}.mvt';
- let tilesLoaded=false,tilesFailed=false;
- const grid=L.vectorGrid.protobuf(cameraUrl,{
-   rendererFactory:L.canvas.tile,
-   interactive:true,
-   maxNativeZoom:14,
-   vectorTileLayerStyles:{cameras:(p,z)=>{
-     const brand=String(p.brand||p.manufacturer||p.operator||p.name||'');
-     const flock=/flock/i.test(brand);
-     return {radius:z<8?2.6:z<11?4.1:6.4,weight:1.5,color:'#112830',fillColor:flock?'#6ce1b6':'#ffbb7b',fillOpacity:.92,stroke:true,fill:true};
-   }}
- });
- grid.on('load',()=>{
-   if(!tilesLoaded){tilesLoaded=true;$('layer-indicator').textContent='Camera tiles active';}
-   if(tilesFailed){tilesFailed=false;say('camera-message','Camera map is displaying reported ALPR locations as tiles load.');}
- });
- grid.on('tileerror',()=>{
-   if(!tilesFailed){tilesFailed=true;$('layer-indicator').textContent='Camera tiles unavailable';say('camera-message','Camera tile service is not responding. Streets and GPS still work, but camera coverage is unavailable.',true);}
- });
- grid.on('click',e=>{
-   const p=e.layer?.properties||{},c=e.latlng||map.getCenter(),id=p.osmId||p.osm_id||'';
-   const kind=/flock/i.test(String(p.brand||p.manufacturer||p.operator||p.name||''))?'Flock-tagged record':'Public ALPR record';
-   $('details').innerHTML='<strong>'+kind+'</strong><p>Operator / manufacturer: '+safe(p.brand||p.manufacturer||p.operator||'Not identified')+'</p>'+
-   '<p>Coordinates: '+Number(c.lat).toFixed(5)+', '+Number(c.lng).toFixed(5)+'</p>'+
-   (id?'<p><a target="_blank" rel="noopener noreferrer" href="https://www.openstreetmap.org/node/'+encodeURIComponent(id)+'">View OSM source record</a></p>':'')+
-   '<p class="help">Volunteer-mapped location; not independently verified.</p>';
- });
- grid.addTo(map);
- $('layer-indicator').textContent='Camera tiles loading';
- say('camera-message','Camera locations load automatically as you pan or zoom. No extra zoom requirement or lookup button.');
-}else{
- $('layer-indicator').textContent='Camera layer unavailable';
- say('camera-message','The camera-layer library did not load. The map still works; check your internet connection and reload.',true);
-}
-function setOrigin(ll,label){
- origin=L.latLng(ll);
+function setOrigin(coords,label){
+ if(!validLoc(coords))return;
+ origin=coords;
+ if(originMarker)originMarker.remove();
+ originMarker=marker(coords,'#65dfb3');
  $('origin-label').textContent='Start: '+label;
- if(originMarker)map.removeLayer(originMarker);
- originMarker=L.circleMarker(origin,{radius:7,color:'#fff',weight:2,fillColor:'#6ce1b6',fillOpacity:1}).addTo(map).bindPopup('Navigation start');
- if(dest)$('calculate').disabled=false;
+ $('preview').disabled=!destination;
 }
-$('use-center').onclick=()=>setOrigin(map.getCenter(),'selected map center');
-$('my-location').onclick=()=>{
- if(!navigator.geolocation){say('route-message','Location access unavailable in this browser.',true);return;}
- say('route-message','Requesting your GPS position…');
+$('start-center').onclick=()=>{const p=map.getCenter();setOrigin([p.lng,p.lat],'chosen map center');say('route-status','Start point selected. Choose a destination, then tap Preview driving route.');};
+$('locate').onclick=()=>{
+ if(!navigator.geolocation){say('route-status','Location permission unsupported; use map center.',true);return;}
+ say('route-status','Requesting GPS permission…');
  navigator.geolocation.getCurrentPosition(p=>{
-   const ll=L.latLng(p.coords.latitude,p.coords.longitude);
-   if(positionMarker)map.removeLayer(positionMarker);
-   positionMarker=L.circleMarker(ll,{radius:8,weight:2,color:'#fff',fillColor:'#478cff',fillOpacity:1}).addTo(map);
-   map.setView(ll,14);setOrigin(ll,'your GPS location');
-   say('route-message','GPS location found. Find a destination to plan a route.');
- },e=>say('route-message',e.code===1?'GPS permission denied. Use map center instead.':'Unable to determine GPS position. Try again.',true),
+   const coords=[p.coords.longitude,p.coords.latitude];
+   if(!validLoc(coords))throw Error('Invalid GPS location');
+   if(locationMarker)locationMarker.remove();
+   locationMarker=marker(coords,'#478bff');
+   map.flyTo({center:coords,zoom:14});
+   setOrigin(coords,'your current GPS position');
+   say('route-status','GPS location found. Choose or enter a destination.');
+ },err=>say('route-status',err.code===1?'Location denied. Allow location access in Safari or choose map center.':'GPS unavailable. Use map center as a starting point.',true),
  {enableHighAccuracy:true,timeout:15000,maximumAge:60000});
 };
-function explicitState(query){
- // Only enforce a state when the user explicitly included one.
- const all={FL:'Florida',GA:'Georgia',AL:'Alabama',SC:'South Carolina',NC:'North Carolina',TN:'Tennessee',TX:'Texas',NY:'New York',CA:'California'};
- const text=query.toLowerCase();
- for(const [code,name] of Object.entries(all)){
-   if(new RegExp('\\b'+name.toLowerCase()+'\\b').test(text))return name;
-   if(new RegExp('(?:,|\\s)'+code+'(?:\\s|,|\\d|$)','i').test(query))return name;
+$('choose-pin').onclick=()=>{
+ pinsMode=true;$('map-mode').textContent='Tap the map where you want to go.';
+ say('address-status','Tap the map to select a destination pin. This works even if address search is unavailable.');
+};
+const statePairs='AL:Alabama,AK:Alaska,AZ:Arizona,AR:Arkansas,CA:California,CO:Colorado,CT:Connecticut,DE:Delaware,FL:Florida,GA:Georgia,HI:Hawaii,ID:Idaho,IL:Illinois,IN:Indiana,IA:Iowa,KS:Kansas,KY:Kentucky,LA:Louisiana,ME:Maine,MD:Maryland,MA:Massachusetts,MI:Michigan,MN:Minnesota,MS:Mississippi,MO:Missouri,MT:Montana,NE:Nebraska,NV:Nevada,NH:New Hampshire,NJ:New Jersey,NM:New Mexico,NY:New York,NC:North Carolina,ND:North Dakota,OH:Ohio,OK:Oklahoma,OR:Oregon,PA:Pennsylvania,RI:Rhode Island,SC:South Carolina,SD:South Dakota,TN:Tennessee,TX:Texas,UT:Utah,VT:Vermont,VA:Virginia,WA:Washington,WV:West Virginia,WI:Wisconsin,WY:Wyoming';
+const states=Object.fromEntries(statePairs.split(',').map(pair=>pair.split(':')));
+function expectedState(query){
+ for(const [code,name] of Object.entries(states)){
+  const reName=new RegExp('\\b'+name+'\\b','i');
+  if(reName.test(query)||new RegExp('(?:,|\\s)'+code+'(?=\\s|,|\\d|$)','i').test(query))return name;
  }
- return '';
+ return null;
 }
-function destinationRow(item,index,requestedNumber){
- const a=item.address||{},state=a.state||a.region||'State unknown',house=a.house_number||'';
- const precise=!!house && (!requestedNumber||house===requestedNumber);
- const quality=precise?'House number matched':requestedNumber?'House number not confirmed — check location before using':'Location candidate';
- return '<button class="choice" type="button" data-choice="'+index+'">'+safe(item.display_name)+
- '<small>'+safe(state)+' · '+quality+'</small></button>';
+let found=[],selectedCandidate=-1;
+function linkAddress(){
+ // Important: pass the originally typed full address to the native mapping app,
+ // not the coordinates from a potentially imprecise prototype geocoder.
+ const value=$('address').value.trim();
+ const target=destination&&!value?destination.join(','):value;
+ $('apple').href='https://maps.apple.com/?daddr='+encodeURIComponent(target)+'&dirflg=d';
+ $('google').href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(target)+'&travelmode=driving';
+}
+$('address').addEventListener('input',()=>{
+ selectedCandidate=-1;destination=null;selectedAddress='';found=[];
+ $('preview').disabled=true;$('routes').innerHTML='';$('instructions').innerHTML='';
+ $('address-results').innerHTML='';
+ linkAddress();
+ say('address-status','Tap Find address to review matching locations. Apple Maps and Google Maps links will use the full address you typed.');
+});
+linkAddress();
+const addrNumber=q=>(q.match(/^\s*(\d+[A-Za-z]?)\b/)||[])[1]||'';
+function formatNominatim(item){
+ const a=item.address||{};
+ return {label:item.display_name||'',state:a.state||'',city:a.city||a.town||a.village||'',zip:a.postcode||'',number:a.house_number||'',
+   coords:[Number(item.lon),Number(item.lat)],provider:'OSM Nominatim'};
+}
+function formatPhoton(item){
+ const p=item.properties||{},c=item.geometry&&item.geometry.coordinates||[];
+ return {label:[p.housenumber,p.street,p.city,p.state,p.postcode].filter(Boolean).join(', '),state:p.state||'',
+ city:p.city||'',zip:p.postcode||'',number:p.housenumber||'',coords:[Number(c[0]),Number(c[1])],provider:'Photon'};
+}
+const searchCache=new Map();
+async function searchAddresses(query){
+ if(searchCache.has(query))return searchCache.get(query);
+ const url='https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&countrycodes=us&q='+encodeURIComponent(query);
+ let candidates=[],reason='';
+ try{
+   const response=await fetch(url,{headers:{Accept:'application/json'}});
+   if(!response.ok)throw Error('Nominatim status '+response.status);
+   const value=await response.json();
+   if(!Array.isArray(value))throw Error('Invalid Nominatim response');
+   candidates=value.map(formatNominatim);
+ }catch(e){reason=String(e.message||e);}
+ if(!candidates.length){
+   try{
+     const photonUrl='https://photon.komoot.io/api/?q='+encodeURIComponent(query)+'&limit=8&lang=en';
+     const response=await fetch(photonUrl,{headers:{Accept:'application/json'}});
+     if(!response.ok)throw Error('Photon status '+response.status);
+     const body=await response.json();
+     candidates=(body.features||[]).map(formatPhoton);
+   }catch(e){reason+=' '+String(e.message||e);}
+ }
+ const state=expectedState(query);
+ if(state)candidates=candidates.filter(x=>x.state&&x.state.toLowerCase()===state.toLowerCase());
+ const byZip=(query.match(/\b\d{5}\b/)||[])[0];
+ if(byZip){
+   const zipMatches=candidates.filter(x=>x.zip===byZip);
+   if(zipMatches.length)candidates=zipMatches;
+ }
+ const uniq=new Set();
+ candidates=candidates.filter(x=>{
+   if(!validLoc(x.coords)||!x.label)return false;
+   const k=x.coords.map(v=>v.toFixed(5)).join(',');
+   if(uniq.has(k))return false;uniq.add(k);return true;
+ }).slice(0,6);
+ if(candidates.length)searchCache.set(query,candidates);
+ return {candidates,reason,state};
+}
+function chooseDestination(coords,label){
+ if(!validLoc(coords))return;
+ destination=coords;selectedAddress=label;
+ if(destinationMarker)destinationMarker.remove();
+ destinationMarker=marker(coords,'#f4b875');
+ $('preview').disabled=!origin;
+ map.flyTo({center:coords,zoom:14});
+ say('address-status','Destination selected: '+label+'. '+(origin?'Tap Preview driving route.':'Tap My location or Start at map center to preview a FlockFree route.'));
+ if(!$('address').value.trim())linkAddress();
 }
 $('find').onclick=async()=>{
- const query=$('destination').value.trim();
- if(!query){say('route-message','Enter a destination address.',true);return;}
- $('find').disabled=true;dest=null;$('calculate').disabled=true;
- $('destination-matches').innerHTML='';$('routes').innerHTML='';$('nav-card').hidden=true;
- say('route-message','Searching addresses. Review the city and state before selecting…');
+ const query=$('address').value.trim();
+ if(!query){say('address-status','Enter the street, city, state and ZIP, then search.',true);return;}
+ $('find').disabled=true;destination=null;selectedCandidate=-1;$('preview').disabled=true;
+ $('address-results').innerHTML='';$('routes').innerHTML='';$('instructions').innerHTML='';
+ say('address-status','Searching. You will choose the correct address and state before previewing the route.');
  try{
-   const url='https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=us&limit=8&q='+encodeURIComponent(query);
-   const response=await fetch(url,{headers:{Accept:'application/json'}});
-   if(!response.ok)throw Error('Address search service unavailable');
-   let matches=await response.json();
-   if(!Array.isArray(matches))throw Error('Invalid response');
-   const requested=explicitState(query);
-   if(requested)matches=matches.filter(x=>{
-      const addr=x.address||{};return String(addr.state||addr.region||'').toLowerCase()===requested.toLowerCase();
-   });
-   candidates=matches.slice(0,6);
-   if(!candidates.length){say('route-message',requested?'No matching destination found in '+requested+'. Check street, city and ZIP; no route has been selected.':'No matching destinations. Try the full address, city and state.',true);return;}
-   const number=(query.match(/^(\d+)\s/)||[])[1]||'';
-   $('destination-matches').innerHTML='<strong class="help">Choose the correct address and state:</strong>'+
-      candidates.map((x,i)=>destinationRow(x,i,number)).join('');
-   $('destination-matches').querySelectorAll('[data-choice]').forEach(button=>button.onclick=()=>{
-     const item=candidates[Number(button.dataset.choice)];
-     dest=L.latLng(Number(item.lat),Number(item.lon));
-     if(destMarker)map.removeLayer(destMarker);
-     destMarker=L.circleMarker(dest,{radius:8,weight:2,color:'#fff',fillColor:'#ffbb7b',fillOpacity:1}).addTo(map).bindPopup('Selected destination');
-     $('destination-matches').querySelectorAll('[data-choice]').forEach(b=>b.classList.toggle('selected',b===button));
-     map.setView(dest,14);
-     $('calculate').disabled=!origin;
-     say('route-message','Selected: '+item.display_name+'. '+(origin?'Tap Calculate driving routes.':'Tap My location or Use map center for your starting point.'));
-   });
-   say('route-message','Review the displayed state and select a matching location. Do not navigate until the destination pin is correct.');
- }catch(error){say('route-message','Address lookup failed. Try again after checking your internet connection.',true);}
- finally{$('find').disabled=false;}
-};
-const navMessage=(s,w=false)=>say('nav-message',s,w);
-const metersToFeet=m=>Math.round(m*3.28084);
-const distanceText=m=>m>=1609.344?(m/1609.344).toFixed(1)+' mi':Math.max(10,Math.round(m*3.28084/10)*10)+' ft';
-const haversine=(a,b)=>{
- const R=6371000,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lng-a.lng)*Math.PI/180;
- const z=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
- return R*2*Math.atan2(Math.sqrt(z),Math.sqrt(1-z));
-};
-function instruction(step){
- const m=step.maneuver||{},type=m.type||'',mod=m.modifier||'';
- const name=step.name?' onto '+step.name:'';
- if(type==='arrive')return 'You have arrived at your destination';
- if(type==='depart')return 'Begin on '+(step.name||'the road');
- if(type==='roundabout'||type==='rotary')return 'Enter the roundabout'+(m.exit?' and take exit '+m.exit:'')+name;
- if(type==='merge')return 'Merge '+mod+name;
- if(type==='on ramp')return 'Take the on-ramp '+mod+name;
- if(type==='off ramp')return 'Take the exit '+mod+name;
- if(type==='fork')return 'Keep '+mod+name;
- if(type==='continue')return 'Continue '+(mod||'straight')+name;
- if(type==='turn')return 'Turn '+(mod||'')+name;
- if(type==='new name')return 'Continue onto '+(step.name||'the road');
- if(type==='end of road')return 'At the end of the road, turn '+mod+name;
- if(type==='notification')return 'Continue '+name;
- if(type==='use lane')return 'Keep in the indicated lane '+name;
- return type.charAt(0).toUpperCase()+type.slice(1)+name;
-}
-function allSteps(route){return (route.legs||[]).flatMap(leg=>leg.steps||[]);}
-function displayInstructions(){
- const steps=allSteps(routes[selectedRoute]);
- $('instruction-list').innerHTML=steps.map((s,i)=>'<li'+(i===navStepIndex?' class="current"':'')+'>'+safe(instruction(s))+' <span class="help">('+distanceText(s.distance||0)+')</span></li>').join('');
-}
-function speak(s){
- if(!voiceEnabled||!('speechSynthesis' in window))return;
- try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(s);u.rate=.98;speechSynthesis.speak(u);}catch(error){}
-}
-function updateGuidance(p){
- if(!routes.length)return;
- const steps=allSteps(routes[selectedRoute]);
- if(!steps.length)return;
- if(navStepIndex===0&&steps.length>1)navStepIndex=1;
- let target=steps[navStepIndex];
- if(!target)return;
- let next=L.latLng(target.maneuver.location[1],target.maneuver.location[0]);
- let distance=haversine(p,next);
- if(distance<42&&navStepIndex<steps.length-1){
-   navStepIndex++;target=steps[navStepIndex];next=L.latLng(target.maneuver.location[1],target.maneuver.location[0]);distance=haversine(p,next);
- }
- const title=instruction(target);
- $('next-turn').textContent=title;
- $('next-distance').textContent='Next maneuver in '+distanceText(distance);
- if(lastSpoken!==navStepIndex){speak(title);lastSpoken=navStepIndex;}
- displayInstructions();
- if(target.maneuver.type==='arrive'&&distance<55){navMessage('You reached the destination. End GPS guidance.');speak('You have arrived.');stopGuidance();}
-}
-function drawRoutes(){
- routeLayer.clearLayers();
- routes.forEach((r,i)=>{
-   L.polyline(r.geometry.coordinates.map(p=>[p[1],p[0]]),{
-     color:i===selectedRoute?'#6ce1b6':'#92aaca',weight:i===selectedRoute?7:4,opacity:i===selectedRoute?1:.65
-   }).on('click',()=>selectRoute(i)).addTo(routeLayer);
- });
-}
-function selectRoute(i){
- if(gpsWatch!=null)stopGuidance();
- selectedRoute=i;navStepIndex=0;lastSpoken=-1;
- drawRoutes();
- $('routes').querySelectorAll('[data-route]').forEach(b=>b.classList.toggle('selected',Number(b.dataset.route)===i));
- $('nav-card').hidden=false;
- const steps=allSteps(routes[i]);
- $('next-turn').textContent=steps.length?instruction(steps[0]):'Route selected';
- $('next-distance').textContent='Select Start GPS guidance when ready';
- displayInstructions();
-}
-$('calculate').onclick=async()=>{
- if(!origin||!dest){say('route-message','Select your starting location and confirm a destination first.',true);return;}
- $('calculate').disabled=true;say('route-message','Calculating driving route alternatives…');
- try{
-   const url='https://router.project-osrm.org/route/v1/driving/'+origin.lng+','+origin.lat+';'+dest.lng+','+dest.lat+'?overview=full&geometries=geojson&alternatives=true&steps=true';
-   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
-   let response;try{response=await fetch(url,{signal:controller.signal});}finally{clearTimeout(timer);}
-   if(!response.ok)throw Error('Routing unavailable');
-   const data=await response.json();
-   if(data.code!=='Ok'||!Array.isArray(data.routes)||!data.routes.length)throw Error('No driving route found');
-   routes=data.routes.filter(r=>r.geometry&&r.geometry.coordinates&&r.legs&&r.legs.length).sort((a,b)=>a.duration-b.duration).slice(0,4);
-   if(!routes.length)throw Error('No usable route found');
-   $('routes').innerHTML=routes.map((r,i)=>{
-     const minutes=Math.round(r.duration/60),miles=(r.distance/1609.344).toFixed(1);
-     return '<button class="choice" data-route="'+i+'" type="button"><strong>'+(i?'Alternative '+i:'Fastest route')+': '+minutes+' min · '+miles+' mi</strong>'+
-       '<small>Tap to select · No live traffic · Camera coverage along the full route is not validated</small></button>';
+   const {candidates,reason,state}=await searchAddresses(query);
+   found=candidates;
+   if(!candidates.length){
+     say('address-status','No reliable address result'+(state?' in '+state:'')+'. Use the Apple Maps link above for directions, or select a destination manually with Pick destination on map.',true);
+     return;
+   }
+   const n=addrNumber(query);
+   $('address-results').innerHTML='<b class="muted">Tap the matching location. Verify the street number, city and state:</b>'+
+   candidates.map((p,i)=>{
+     const exact=!n||p.number.toLowerCase()===n.toLowerCase();
+     return '<button type="button" class="choice" data-candidate="'+i+'"><strong>'+esc(p.label)+'</strong><small>'+
+       esc(p.state||'State unavailable')+' · '+(exact?'Address candidate':'House number NOT confirmed; location may be approximate')+'</small></button>';
    }).join('');
-   $('routes').querySelectorAll('[data-route]').forEach(b=>b.onclick=()=>selectRoute(Number(b.dataset.route)));
-   selectRoute(0);
-   const bounds=L.latLngBounds(routes[0].geometry.coordinates.map(p=>[p[1],p[0]]));
-   map.fitBounds(bounds.pad(.14),{maxZoom:15});
-   say('route-message',routes.length+' driving route(s) calculated to your confirmed destination. Tap a route to select it. These are not verified camera-avoidance routes.');
- }catch(error){say('route-message','Driving route could not be calculated. Verify the selected address or try again later; the public routing server may be busy.',true);}
- finally{$('calculate').disabled=false;}
+   $('address-results').querySelectorAll('[data-candidate]').forEach(button=>button.onclick=()=>{
+     selectedCandidate=Number(button.dataset.candidate);
+     const p=found[selectedCandidate];const exact=!n||p.number.toLowerCase()===n.toLowerCase();
+     $('address-results').querySelectorAll('[data-candidate]').forEach(b=>b.classList.toggle('active',b===button));
+     chooseDestination(p.coords,p.label);
+     if(!exact)say('address-status','Warning: selected result does NOT confirm house number '+n+'. Check destination pin. Apple Maps will search the original typed address.',true);
+   });
+   say('address-status',candidates.length+' matching location(s). Select one; a typed address is never automatically assumed to be in the correct state.');
+ }catch(error){
+   say('address-status','Address service unavailable. Apple Maps and Google Maps links above can still navigate using the full typed address.',true);
+ }finally{$('find').disabled=false;}
 };
-function stopGuidance(){
- if(gpsWatch!=null){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null;}
- $('start').disabled=false;$('stop').disabled=true;
- navMessage('GPS guidance stopped. Review the route before starting again.');
+const meters=m=>m>1609.344?(m/1609.344).toFixed(1)+' miles':Math.max(10,Math.round(m*3.28084/10)*10)+' feet';
+function stepLine(step){
+ const m=step.maneuver||{},t=m.type||'',dir=m.modifier||'',street=step.name?' on '+step.name:'';
+ if(t==='depart')return 'Start on '+(step.name||'the road');
+ if(t==='arrive')return 'Arrive at your destination';
+ if(t==='roundabout')return 'Take the roundabout exit '+(m.exit||'')+street;
+ if(t==='turn')return 'Turn '+dir+street;
+ if(t==='merge')return 'Merge '+dir+street;
+ if(t==='continue')return 'Continue '+(dir||'straight')+street;
+ if(t==='fork')return 'Keep '+dir+street;
+ if(t==='on ramp'||t==='off ramp')return 'Take '+t+street;
+ return t.replace(/^\w/,s=>s.toUpperCase())+street;
 }
-$('start').onclick=()=>{
- if(!routes.length){navMessage('Calculate a route first.',true);return;}
- if(!navigator.geolocation){navMessage('GPS navigation unsupported.',true);return;}
- if(gpsWatch!=null)return;
- navStepIndex=0;lastSpoken=-1;
- $('start').disabled=true;$('stop').disabled=false;
- navMessage('GPS guidance starting. Keep Safari in the foreground for best results; background navigation is not guaranteed.');
- gpsWatch=navigator.geolocation.watchPosition(p=>{
-   const ll=L.latLng(p.coords.latitude,p.coords.longitude);
-   lastGps=ll;
-   if(positionMarker)map.removeLayer(positionMarker);
-   positionMarker=L.circleMarker(ll,{radius:8,weight:3,color:'#fff',fillColor:'#478cff',fillOpacity:1}).addTo(map);
-   map.setView(ll,Math.max(map.getZoom(),15),{animate:false});
-   updateGuidance(ll);
- },error=>{
-   navMessage(error.code===1?'GPS permission denied. Check Safari location permissions.':'GPS signal unavailable; guidance paused.',true);
-   if(error.code===1)stopGuidance();
- },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+function showRoute(index){
+ routeIndex=index;
+ const route=selectedRoutes[index];if(!route)return;
+ const coords=route.geometry.coordinates;
+ if(map.getSource('routes'))map.getSource('routes').setData({type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}}]});
+ $('routes').querySelectorAll('[data-route]').forEach(el=>el.classList.toggle('active',Number(el.dataset.route)===index));
+ const steps=route.legs.flatMap(l=>l.steps||[]);
+ $('instructions').innerHTML=steps.map(s=>'<li>'+esc(stepLine(s))+' <span class="muted">('+meters(s.distance||0)+')</span></li>').join('');
+ say('route-status','Route '+(index+1)+' highlighted. For actual navigation, tap Apple Maps or Google Maps; these are preview instructions.');
+}
+$('preview').onclick=async()=>{
+ if(!origin||!destination){say('route-status','Choose My location / map center and confirm a destination first.',true);return;}
+ $('preview').disabled=true;say('route-status','Calculating alternative driving routes…');
+ try{
+   const url='https://router.project-osrm.org/route/v1/driving/'+origin.join(',')+';'+destination.join(',')+'?overview=full&geometries=geojson&steps=true&alternatives=true';
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+   let response;try{response=await fetch(url,{signal:controller.signal});}finally{clearTimeout(timer);}
+   if(!response.ok)throw Error('Routing server '+response.status);
+   const data=await response.json();
+   if(data.code!=='Ok'||!Array.isArray(data.routes)||!data.routes.length)throw Error('No connected driving route');
+   selectedRoutes=data.routes.filter(r=>Array.isArray(r.geometry?.coordinates)&&r.geometry.coordinates.length>1).sort((a,b)=>a.duration-b.duration).slice(0,4);
+   if(!selectedRoutes.length)throw Error('No route geometry returned');
+   $('routes').innerHTML=selectedRoutes.map((r,i)=>'<button type="button" class="choice" data-route="'+i+'"><strong>'+
+     (i===0?'Fastest route':'Alternative '+i)+': '+Math.round(r.duration/60)+' min · '+(r.distance/1609.344).toFixed(1)+' mi</strong>'+
+     '<small>Tap to highlight · Not camera-verified · Live traffic not included</small></button>').join('');
+   $('routes').querySelectorAll('[data-route]').forEach(b=>b.onclick=()=>showRoute(Number(b.dataset.route)));
+   showRoute(0);
+   const bounds=coordsBounds(selectedRoutes[0].geometry.coordinates);
+   if(bounds)map.fitBounds(bounds,{padding:40,maxZoom:15});
+ }catch(error){say('route-status','FlockFree preview is unavailable ('+String(error.message||'network error')+'). Open Apple Maps or Google Maps above for actual driving directions.',true);}
+ finally{$('preview').disabled=!origin||!destination;}
 };
-$('stop').onclick=()=>stopGuidance();
-$('voice').onclick=()=>{
- voiceEnabled=!voiceEnabled;$('voice').textContent='Voice: '+(voiceEnabled?'On':'Off');
- $('voice').setAttribute('aria-pressed',String(voiceEnabled));
- if(!voiceEnabled&&'speechSynthesis' in window)speechSynthesis.cancel();
-};
-document.addEventListener('visibilitychange',()=>{
- if(document.hidden&&gpsWatch!=null)navMessage('Safari is in the background: GPS and voice guidance may pause. Keep the app visible while testing.',true);
-});
+function coordsBounds(points){
+ if(!points.length)return null;
+ let west=Infinity,south=Infinity,east=-Infinity,north=-Infinity;
+ for(const [lon,lat] of points){west=Math.min(west,lon);east=Math.max(east,lon);south=Math.min(south,lat);north=Math.max(north,lat);}
+ if(![west,south,east,north].every(Number.isFinite))return null;
+ return [[west,south],[east,north]];
+}
 })();
-</script>
-</body></html>
+</script></body></html>
