@@ -58,7 +58,7 @@
 <main class="shell">
   <div class="brandline">
     <div class="brand"><span class="shield" aria-hidden="true">⬡</span><span>Flock<em>Free</em></span></div>
-    <span class="pill">PUBLIC MAP • BETA 0.2</span>
+    <span class="pill">PUBLIC MAP • BETA 0.3</span>
   </div>
   <p class="eyebrow">Explore publicly mapped license-plate readers. Camera records may be incomplete, outdated, or incorrectly labeled.</p>
   <section class="card" aria-label="Find a location">
@@ -93,7 +93,7 @@
     <div class="details" id="details">Tap a camera marker to inspect the source record.</div>
   </section>
   <div class="privacy"><span style="font-size:22px">♢</span><span><strong>Prototype privacy:</strong> No account or route history. The map provider receives map tile requests; location searches and camera-data requests go to external public services. Personal camera reports stay only in this browser.</span></div>
-  <footer>FlockFree v0.2 • OpenStreetMap contributors • Testing only • No turn-by-turn navigation or camera-free-route guarantees</footer>
+  <footer>FlockFree v0.3 • OpenStreetMap contributors • Testing only • No turn-by-turn navigation or camera-free-route guarantees</footer>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -141,16 +141,48 @@
     if(Date.now()-lastQueryAt<5000){status('Please allow a few seconds between camera-data requests.',true);return;}
     lastQueryAt=Date.now();loading=true;$('load').disabled=true;status('Checking OpenStreetMap public ALPR records for this map area…');
     const bounds=map.getBounds(),bbox=[bounds.getSouth().toFixed(5),bounds.getWest().toFixed(5),bounds.getNorth().toFixed(5),bounds.getEast().toFixed(5)].join(',');
-    const query=`[out:json][timeout:24];(node["man_made"="surveillance"]["surveillance:type"="ALPR"](${bbox});way["man_made"="surveillance"]["surveillance:type"="ALPR"](${bbox}););out center 500;`;
-    try{
-      const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),30000);
-      let response;
-      try{response=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(query),{signal:controller.signal});}finally{clearTimeout(timeout);}
-      if(!response.ok)throw new Error('Overpass unavailable');
-      const data=await response.json();if(!Array.isArray(data.elements))throw new Error('Unexpected result');
-      mapped=data.elements.map(x=>{const pos=x.center||x;return {lat:Number(pos.lat),lon:Number(pos.lon),tags:x.tags||{},osmType:x.type,osmId:x.id};}).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
-      draw();status(mapped.length?`${mapped.length} ALPR record(s) found in the current map area. Tap a marker for its public source. These records are not independently verified.`:'No publicly mapped ALPR records were returned for this area. That does not mean no cameras are present.');
-    }catch(e){status('Camera-data service did not respond. Try again later or move to a different area; the map itself still works.',true);}finally{loading=false;$('load').disabled=false;}
+    const query=`[out:json][timeout:18];(node["man_made"="surveillance"]["surveillance:type"="ALPR"](${bbox});way["man_made"="surveillance"]["surveillance:type"="ALPR"](${bbox}););out center 500;`;
+    // Overpass is a community service with occasional timeouts and rate limits.
+    // Use an independent fallback. API errors must never be shown as zero cameras.
+    const endpoints=[
+      'https://overpass.private.coffee/api/interpreter',
+      'https://overpass-api.de/api/interpreter'
+    ];
+    async function lookup(endpoint) {
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),20000);
+      try {
+        const response=await fetch(endpoint+'?data='+encodeURIComponent(query),{
+          signal:controller.signal,
+          headers:{'Accept':'application/json'}
+        });
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        const payload=await response.json();
+        if(!payload||!Array.isArray(payload.elements))throw new Error('Unexpected response');
+        return payload.elements;
+      } finally {clearTimeout(timer);}
+    }
+    try {
+      let elements=null;
+      for(let index=0;index<endpoints.length;index++) {
+        try {
+          if(index>0)status('Primary camera database unavailable. Checking a backup server…');
+          elements=await lookup(endpoints[index]);
+          break;
+        } catch(error) {
+          console.warn('FlockFree camera data request failed:',index,error);
+        }
+      }
+      if(elements===null)throw new Error('Camera databases unavailable');
+      mapped=elements.map(x=>{const pos=x.center||x;return {lat:Number(pos.lat),lon:Number(pos.lon),tags:x.tags||{},osmType:x.type,osmId:x.id};}).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
+      draw();
+      status(mapped.length?`${mapped.length} publicly mapped ALPR record(s) found here. Tap a marker for source details; records are unverified.`:'The camera database responded, but returned no ALPR records for this map area. That does not mean no cameras are present.');
+    }catch(error){
+      status('Both public camera-data services are unavailable. Please try again later. The map and GPS still work; camera coverage cannot be assessed right now.',true);
+    }finally{
+      loading=false;
+      $('load').disabled=false;
+    }
   });
   $('report').addEventListener('click',()=>{
     const p=map.getCenter();markerPosition={lat:p.lat,lon:p.lng};
