@@ -606,7 +606,10 @@ async function navRecalculate(ll,generation){
   if(!navActive||generation!==navRouteGeneration)return;
   const route=data.routes[0];
   if(!route.geometry?.coordinates||!route.legs?.length)throw Error('Incomplete reroute');
-  plans=[route];chosenRoute=0;displayRoute(0,true);
+  plans=[route];chosenRoute=0;
+  $('routes').innerHTML='<button class="choice active" type="button" data-route="0"><strong>Updated route: '+Math.round(route.duration/60)+' min · '+(route.distance/1609.344).toFixed(1)+' mi</strong><small>Recalculated using current GPS position · No live traffic</small></button>';
+  $('routes').querySelector('[data-route="0"]').onclick=()=>displayRoute(0);
+  displayRoute(0,true);
   navOffRouteCount=0;navRerouting=false;
   navState('GPS active');navSay('Updated route calculated. Follow on-screen guidance; confirm against road signs.');
   navSpeak('Route updated');
@@ -649,7 +652,6 @@ function navOnFix(position){
   navDisplayCurrent(point.progress);
  }
  if(destination&&navDistance(ll,destination)<35&&currentAccuracy<40){
-  navSpeak('You are near your destination');
   stopNavigation('Near your destination. Check the entrance and safely stop guidance.');navState('Arrived nearby');
  }
 }
