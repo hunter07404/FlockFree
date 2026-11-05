@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d171c">
-<title>FlockFree 0.9 | Camera Map and Navigation</title>
+<title>FlockFree 0.10 | Camera Map and Navigation</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 :root{color-scheme:dark;--bg:#0c181e;--panel:#182a32;--ink:#f3faf8;--green:#6ce1b6;--edge:#395963;--muted:#b7cdd0}
@@ -26,6 +26,8 @@ button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-v
 #camera-status,#address-status,#route-status{padding:11px;border-radius:10px;background:#102630;border:1px solid #466570;font-size:13px;line-height:1.5;margin:9px 0}
 .warn{color:#ffd6a8!important;border-color:#956f45!important}
 #address-results,#routes{display:grid;gap:8px;margin-top:9px}
+#address-fallback{background:#17343b;border:1px solid #54847a;border-radius:12px;margin:11px 0;padding:12px}
+#address-fallback[hidden]{display:none}
 .choice{background:#203c43;display:block;width:100%;text-align:left;white-space:normal;line-height:1.45}
 .choice.active{border-color:var(--green);background:#244b3e}
 .choice strong{display:block;font-size:14px}.choice small{display:block;font-size:12px;font-weight:400;color:#bad1d4;margin-top:4px}
@@ -37,7 +39,7 @@ button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-v
 footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 @media(max-width:570px){.row.search input{flex-basis:100%}.row.search button{flex:1}#map{min-height:335px;height:51vh}}
 </style></head><body><main>
-<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.9</span></header>
+<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.10</span></header>
 <p class="help">Reliable street map • Auto-loading camera dots • Address lookup and real navigation links</p>
 <section>
 <div class="row between"><h2>Camera map</h2><span class="pill" id="map-badge">Map starting…</span></div>
@@ -51,12 +53,20 @@ footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 <h2>Enter destination</h2>
 <div class="row search"><input id="address" type="search" placeholder="Street address, city, state, ZIP" maxlength="160" autocomplete="street-address" aria-label="Destination address">
 <button class="primary" type="button" id="find">Find address</button></div>
-<p class="help">For Florida addresses, include the street number, city, FL or Florida, and ZIP. FlockFree requires these details to match before allowing a route preview. It will not guess a different street or ZIP.</p>
+<p class="help">For Florida addresses, include the street number, city, FL or Florida, and ZIP. FlockFree looks for matching house numbers, streets, state and ZIP. If a property is missing from public map databases, you can position its pin manually.</p>
 <div class="navlinks"><a id="apple" class="navlink primary" target="_blank" rel="noopener noreferrer" href="https://maps.apple.com/">Navigate with Apple Maps</a>
 <a id="google" class="navlink" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/">Navigate with Google Maps</a></div>
 <p class="help">These navigation links use the destination you type and work without FlockFree's address lookup. Address searches also use U.S. Census and OpenStreetMap services. Open them in Safari for normal GPS navigation.</p>
 <div id="address-status" role="status">Type a destination and tap Find address, or tap a destination on the map.</div>
-<div id="address-results"></div><hr>
+<div id="address-results"></div>
+<div id="address-fallback" hidden>
+  <p class="help"><strong>Address not indexed?</strong> Find the street area and place the destination pin yourself. FlockFree will never guess your house location.</p>
+  <div class="row action">
+    <button id="find-street" type="button" class="primary">Locate street area</button>
+    <button id="pin-center" type="button">Use map center as destination</button>
+  </div>
+</div>
+<hr>
 <div class="row between"><span class="help" id="origin-label">Start: use My location or map center</span><button id="use-center">Start at map center</button></div>
 <div class="row" style="margin-top:9px"><button id="preview" type="button" class="primary" disabled>Preview route in FlockFree</button></div>
 <div id="route-status" role="status">Select a destination and starting point to preview alternative driving routes.</div>
@@ -65,7 +75,7 @@ footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 </section>
 <section><h2>Camera information</h2><div id="details">Tap a small camera marker to inspect a public record. At wider zoom levels, a tap may zoom in to provide details.</div></section>
 <section><h2>Privacy</h2><p class="help">Geolocation stays in this browser session. Streets, camera tiles, address searches, and routing use external services. Personal camera reports are saved only in this browser. FlockFree does not store a trip history.</p></section>
-<footer>FlockFree v0.9 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
+<footer>FlockFree v0.10 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -115,6 +125,7 @@ function navigationLinks(){
 $('address').oninput=()=>{
  destination=null;destinationName='';$('preview').disabled=true;plans=[];routesLayer.clearLayers();
  $('address-results').innerHTML='';$('routes').innerHTML='';$('steps').innerHTML='';
+ $('address-fallback').hidden=true;
  if(destinationMarker){map.removeLayer(destinationMarker);destinationMarker=null;}
  navigationLinks();
  say('address-status','Tap Find address to select an exact match; Apple Maps and Google Maps links already use the complete text you entered.');
@@ -134,6 +145,17 @@ $('pin-destination').onclick=()=>{
  pickDestination=true;
  say('address-status','Tap a location on the map to select it as your destination.');
 };
+$('pin-center').onclick=()=>{
+ const center=map.getCenter();
+ chooseDestination([center.lng,center.lat],'Manually selected map pin');
+ $('address-fallback').hidden=true;
+ say('address-status','Destination is your manually selected map center, NOT a verified street address. Confirm the pin before routing.',true);
+};
+// A map pin can always be chosen even when geocoding is incomplete.
+function showManualFallback(message){
+ $('address-fallback').hidden=false;
+ say('address-status',message+' You can search for the street area and then position the destination pin manually, or open Apple Maps above.',true);
+}
 const stateCodes='AL:Alabama,AK:Alaska,AZ:Arizona,AR:Arkansas,CA:California,CO:Colorado,CT:Connecticut,DE:Delaware,FL:Florida,GA:Georgia,HI:Hawaii,ID:Idaho,IL:Illinois,IN:Indiana,IA:Iowa,KS:Kansas,KY:Kentucky,LA:Louisiana,ME:Maine,MD:Maryland,MA:Massachusetts,MI:Michigan,MN:Minnesota,MS:Mississippi,MO:Missouri,MT:Montana,NE:Nebraska,NV:Nevada,NH:New Hampshire,NJ:New Jersey,NM:New Mexico,NY:New York,NC:North Carolina,ND:North Dakota,OH:Ohio,OK:Oklahoma,OR:Oregon,PA:Pennsylvania,RI:Rhode Island,SC:South Carolina,SD:South Dakota,TN:Tennessee,TX:Texas,UT:Utah,VT:Vermont,VA:Virginia,WA:Washington,WV:West Virginia,WI:Wisconsin,WY:Wyoming';
 const states=Object.fromEntries(stateCodes.split(',').map(p=>p.split(':')));
 function requestedState(text){
@@ -172,6 +194,11 @@ function requestedParts(query){
  const zip=(query.match(/\b\d{5}(?:-\d{4})?\b/)||[])[0]?.slice(0,5)||'';
  return {number:addressNumber(query),street,city,zip,state:requestedState(query)};
 }
+function roadComparable(a,b){
+ // Normalize optional leading compass directions while still requiring the road name and type.
+ const strip=s=>normalizeRoad(s).replace(/^(N|S|E|W|NE|NW|SE|SW) /,'');
+ return normalizeRoad(a)===normalizeRoad(b)||strip(a)===strip(b);
+}
 function validCandidate(r,q){
  if(!lngLatValid(r.ll)||!r.label)return false;
  if(q.state&&!sameState(r.state,q.state))return false;
@@ -179,7 +206,7 @@ function validCandidate(r,q){
  if(q.zip&&r.zip!==q.zip)return false;
  if(q.number&&String(r.number).toUpperCase()!==q.number.toUpperCase())return false;
  // When a street address was supplied, do not silently route to a city centre or another road.
- if(q.street&&normalizeRoad(q.street)!==normalizeRoad(r.road))return false;
+ if(q.street&&!roadComparable(q.street,r.road))return false;
  // City is only required when ZIP is absent, to allow unincorporated postal-city names.
  if(q.city&&!q.zip&&normalizeRoad(q.city)!==normalizeRoad(r.city))return false;
  return true;
@@ -199,6 +226,15 @@ function standardize(items,provider){
      };
    });
  }
+ if(provider==='arcgis')return items.map(x=>{
+   const a=x.attributes||{},st=String(a.StAddr||'');
+   return {
+     label:x.address||a.Match_addr||'',state:a.Region||'',zip:String(a.Postal||'').slice(0,5),
+     city:a.City||'',number:addressNumber(st||x.address||''),
+     road:st.replace(/^\s*\d+[A-Za-z]?\s*/,''),ll:[Number(x.location?.x),Number(x.location?.y)],
+     provider:'ArcGIS',estimate:a.Addr_type!=='PointAddress',score:Number(x.score)||0
+   };
+ });
  if(provider==='nominatim')return items.map(x=>{
    const a=x.address||{};
    return {
@@ -261,6 +297,61 @@ async function photonLookup(query){
    return json.features||[];
  }finally{clearTimeout(t);}
 }
+async function arcgisLookup(query){
+ // For non-stored prototyping only; this public endpoint may require credentials or rate-limit.
+ const c=new AbortController(),t=setTimeout(()=>c.abort(),9000);
+ try{
+   const url='https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine='+
+      encodeURIComponent(query)+'&maxLocations=8&outFields=Addr_type,StAddr,City,Region,Postal,Match_addr&forStorage=false&f=json';
+   const response=await fetch(url,{signal:c.signal});
+   if(!response.ok)throw Error('ArcGIS HTTP '+response.status);
+   const data=await response.json();
+   if(data.error)throw Error('ArcGIS unavailable');
+   return (data.candidates||[]).filter(r=>r.score>=90 && ['PointAddress','StreetAddress','Subaddress'].includes(r.attributes?.Addr_type));
+ }finally{clearTimeout(t);}
+}
+function streetAreaQuery(query){
+ const p=requestedParts(query);
+ if(!p.street||!p.state)return null;
+ return {street:p.street,city:p.city,zip:p.zip,state:p.state,
+    request:[p.street,p.city,p.state,p.zip].filter(Boolean).join(', ')};
+}
+async function locateStreetArea(){
+ const q=$('address').value.trim(),road=streetAreaQuery(q);
+ if(!road){showManualFallback('Enter a street, city and state before locating the area.');return;}
+ $('find-street').disabled=true;
+ say('address-status','Looking up the street area, not an individual property. You will place the pin yourself.');
+ try{
+   let results=[];
+   const lookup=await Promise.allSettled([
+     nominatimLookup(road.request),
+     photonLookup(road.request)
+   ]);
+   if(lookup[0].status==='fulfilled')results.push(...standardize(lookup[0].value,'nominatim'));
+   if(lookup[1].status==='fulfilled')results.push(...standardize(lookup[1].value,'photon'));
+   const onStreet=results.find(r=>lngLatValid(r.ll)&&sameState(r.state,road.state)&&
+      roadComparable(road.street,r.road)&&(!road.zip||!r.zip||r.zip===road.zip));
+   if(onStreet){
+     map.setView([onStreet.ll[1],onStreet.ll[0]],17);
+     pickDestination=true;
+     say('address-status','Found an approximate area for '+road.street+' in '+road.state+'. Scroll to the map and TAP the exact property location to place a destination pin. The map is NOT showing a verified house number.',true);
+   }else{
+     const query=[road.city,road.state,road.zip].filter(Boolean).join(', ');
+     const city=await nominatimLookup(query);
+     const places=standardize(city,'nominatim');
+     const inArea=places.find(r=>lngLatValid(r.ll)&&sameState(r.state,road.state)&&(!road.zip||!r.zip||r.zip===road.zip));
+     if(inArea){
+       map.setView([inArea.ll[1],inArea.ll[0]],12);
+       pickDestination=true;
+       say('address-status','Only the general town/ZIP area was found. Move the map to the correct property, then tap the location. This is NOT a verified address match.',true);
+     }else{
+       showManualFallback('The street area could not be located from these public map services.');
+     }
+   }
+ }catch(e){showManualFallback('Street-area lookup is unavailable right now.');}
+ finally{$('find-street').disabled=false;}
+}
+$('find-street').onclick=locateStreetArea;
 let candidates=[];
 $('find').onclick=async()=>{
  const query=$('address').value.trim();
@@ -270,15 +361,17 @@ $('find').onclick=async()=>{
  candidates=[];destination=null;destinationName='';$('preview').disabled=true;
  plans=[];routesLayer.clearLayers();$('routes').innerHTML='';$('steps').innerHTML='';
  $('address-results').innerHTML='';
+ $('address-fallback').hidden=true;
  if(destinationMarker){map.removeLayer(destinationMarker);destinationMarker=null;}
  say('address-status','Checking house number, street, state, and ZIP. Unverified matches will not be used for routing.');
  try{
    const outcomes=await Promise.allSettled([
-     censusLookup(query),nominatimLookup(query)
+     censusLookup(query),nominatimLookup(query),arcgisLookup(query)
    ]);
    let results=[];
    if(outcomes[0].status==='fulfilled')results.push(...standardize(outcomes[0].value,'census'));
    if(outcomes[1].status==='fulfilled')results.push(...standardize(outcomes[1].value,'nominatim'));
+   if(outcomes[2].status==='fulfilled')results.push(...standardize(outcomes[2].value,'arcgis'));
    // Photon is a fallback, not a reason to accept mismatched addresses.
    if(!results.some(r=>validCandidate(r,requested))){
      try{results.push(...standardize(await photonLookup(query),'photon'));}catch(e){console.warn('Address fallback unavailable',e);}
@@ -291,7 +384,7 @@ $('find').onclick=async()=>{
      found.add(key);return true;
    }).slice(0,6);
    if(!candidates.length){
-     say('address-status','No sufficiently verified match for this address. FlockFree will NOT route to a guessed location. Use Apple Maps above, or choose the exact destination on the map.',true);
+     showManualFallback('The public geocoders did not verify this house number. FlockFree will not navigate to a guessed building.');
      return;
    }
    $('address-results').innerHTML='<p class="help"><strong>Matching addresses — tap to review the pin:</strong></p>'+
@@ -308,7 +401,7 @@ $('find').onclick=async()=>{
    });
    say('address-status',candidates.length+' verified address candidate(s). Tap the matching one and inspect its pin.');
  }catch(e){
-   say('address-status','Address verification is unavailable right now. Apple Maps and Google Maps above can still use the full address you typed.',true);
+   showManualFallback('Address verification is unavailable right now.');
  }finally{$('find').disabled=false;}
 };
 const metres=m=>m>=1609.344?(m/1609.344).toFixed(1)+' miles':Math.max(10,Math.round(m*3.28084/10)*10)+' feet';
