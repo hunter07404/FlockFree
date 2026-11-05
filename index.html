@@ -122,6 +122,12 @@ function addCameras(){
    map.addLayer({id:'camera-points',type:'circle',source:'alpr','source-layer':'cameras',minzoom:10.6,
      paint:{'circle-color':cameraColor,'circle-radius':['interpolate',['linear'],['zoom'],10.6,4,13,6,17,7],
        'circle-stroke-color':'#173039','circle-stroke-width':2,'circle-opacity':.95}});
+   map.on('click','camera-far',event=>{
+     // At a wide zoom, detail properties are omitted from the tile.
+     // Tapping a small dot zooms to a level where camera details can be inspected.
+     map.easeTo({center:event.lngLat.toArray(),zoom:Math.max(12.5,map.getZoom()+2.5),duration:650});
+     say('camera-status','Zoomed in to this area. Tap an individual camera dot for its reported details.');
+   });
    map.on('click','camera-points',event=>{
      const feature=event.features&&event.features[0];
      if(!feature)return;
