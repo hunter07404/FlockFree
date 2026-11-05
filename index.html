@@ -51,6 +51,16 @@
     .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#163039; color:#edf8f7; }
     .leaflet-popup-content { line-height:1.5; }
     .leaflet-control-attribution { color:#333 !important; }
+
+    .route-start { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin:10px 0; }
+    .route-start .mini { font-size:13px; }
+    .route-choice { width:100%; text-align:left; display:block; margin-top:9px; background:#1c3239; color:#ecf8f5; border:1px solid #49616a; border-radius:12px; padding:12px; line-height:1.5; }
+    .route-choice.selected { background:#1d3d35; border-color:#6ce1b6; }
+    .route-choice strong { display:block; font-size:15px; }
+    .route-choice small { display:block; margin-top:3px; color:#bdd2d4; font-size:12px; font-weight:500; }
+    .route-note { padding:10px; border-radius:9px; margin-top:10px; background:#1b3036; border:1px solid #395661; }
+    #route-status { font-size:13px; color:#bdd5d8; margin:10px 0; line-height:1.45; }
+    #route-status.warning { color:#ffcc9d; }
     @media(max-width:580px){ .shell{padding:13px 11px 30px;} .brand{font-size:24px;} .search{flex-wrap:wrap;} .search input{flex-basis:100%;} .search button{flex:1;} #map{height:54vh;min-height:330px;} .map-actions .btn{flex:1 1 43%;} }
   </style>
 </head>
@@ -58,7 +68,7 @@
 <main class="shell">
   <div class="brandline">
     <div class="brand"><span class="shield" aria-hidden="true">⬡</span><span>Flock<em>Free</em></span></div>
-    <span class="pill">PUBLIC MAP • BETA 0.3</span>
+    <span class="pill">PUBLIC MAP • BETA 0.4</span>
   </div>
   <p class="eyebrow">Explore publicly mapped license-plate readers. Camera records may be incomplete, outdated, or incorrectly labeled.</p>
   <section class="card" aria-label="Find a location">
@@ -69,6 +79,22 @@
       <button class="btn" id="locate" type="button">My location</button>
     </form>
     <p class="help">Search uses OpenStreetMap Nominatim. “My location” asks for your permission and is not saved by FlockFree.</p>
+  </section>
+
+  <section class="card" id="route-planner">
+    <div class="map-head"><h2>Plan a driving route</h2><span class="pill">NEW IN 0.4</span></div>
+    <p class="help">Preview routes with estimated travel time and compare proximity to currently loaded public camera markers.</p>
+    <div class="route-start">
+      <span class="mini" id="route-start-label">Starting point: not selected</span>
+      <button class="btn" id="use-map-start" type="button">Use map center as start</button>
+    </div>
+    <form class="search" id="route-form">
+      <input id="route-destination" type="search" maxlength="140" required aria-label="Driving destination" placeholder="Destination: city or street address">
+      <button class="btn primary" id="route-submit" type="submit">Preview routes</button>
+    </form>
+    <div role="status" aria-live="polite" id="route-status">Tap “My location” above, or use the map center as your starting point.</div>
+    <div id="route-results"></div>
+    <p class="help route-note"><strong>Route preview only.</strong> No voice directions or automatic rerouting yet. Travel times exclude live traffic. Camera comparisons use only the markers loaded so far and cannot establish that any road is camera-free. Your route coordinates are sent to the public demo routing service for this test.</p>
   </section>
   <section class="card">
     <div class="map-head"><h2>Camera map</h2><span class="pill" id="camera-count">No cameras loaded</span></div>
@@ -93,7 +119,7 @@
     <div class="details" id="details">Tap a camera marker to inspect the source record.</div>
   </section>
   <div class="privacy"><span style="font-size:22px">♢</span><span><strong>Prototype privacy:</strong> No account or route history. The map provider receives map tile requests; location searches and camera-data requests go to external public services. Personal camera reports stay only in this browser.</span></div>
-  <footer>FlockFree v0.3 • OpenStreetMap contributors • Testing only • No turn-by-turn navigation or camera-free-route guarantees</footer>
+  <footer>FlockFree v0.4 • OpenStreetMap contributors • Routing preview is for testing; no live traffic, turn-by-turn navigation, or camera-free guarantees</footer>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -131,6 +157,7 @@
     status('Requesting your location. Please approve the iPhone location prompt if shown…');
     navigator.geolocation.getCurrentPosition(p=>{
       const point=[p.coords.latitude,p.coords.longitude];map.setView(point,15);if(userPosition)map.removeLayer(userPosition);
+      routeStart=L.latLng(point[0],point[1]);$('route-start-label').textContent='Starting point: your GPS location';placeRouteOrigin();
       userPosition=L.circleMarker(point,{radius:8,color:'#fff',weight:3,fillColor:'#538fff',fillOpacity:1}).addTo(map).bindPopup('Your approximate GPS position. Not stored by FlockFree.');
       status('Location found. Tap “Load mapped cameras” to look for publicly mapped ALPRs in this area.');
     },err=>{status(err.code===1?'Location permission was denied. You can still search by city.':'Unable to determine your location. Try searching for a city.',true);},{enableHighAccuracy:false,timeout:12000,maximumAge:120000});
@@ -176,6 +203,7 @@
       if(elements===null)throw new Error('Camera databases unavailable');
       mapped=elements.map(x=>{const pos=x.center||x;return {lat:Number(pos.lat),lon:Number(pos.lon),tags:x.tags||{},osmType:x.type,osmId:x.id};}).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
       draw();
+      updateRouteChoices();
       status(mapped.length?`${mapped.length} publicly mapped ALPR record(s) found here. Tap a marker for source details; records are unverified.`:'The camera database responded, but returned no ALPR records for this map area. That does not mean no cameras are present.');
     }catch(error){
       status('Both public camera-data services are unavailable. Please try again later. The map and GPS still work; camera coverage cannot be assessed right now.',true);
@@ -195,6 +223,107 @@
     if(!mine.length){status('You do not have any personal camera reports to clear.');return;}
     if(!confirm('Delete all personal camera reports saved in this browser?'))return;
     mine=[];saveReports();draw();$('details').textContent='Your local reports were cleared.';status('Personal camera reports removed from this browser.');
+  });
+
+  // v0.4 route preview. Uses OSRM's public testing service, not a production API.
+  let routeStart=null,routeOriginMarker=null,routeEndMarker=null,routePlans=[],selectedRoute=0;
+  const routeLayer=L.layerGroup().addTo(map);
+  const routeMessage=(message,warning=false)=>{$('route-status').textContent=message;$('route-status').classList.toggle('warning',warning);};
+  function placeRouteOrigin(){
+    if(routeOriginMarker)map.removeLayer(routeOriginMarker);
+    if(routeStart)routeOriginMarker=L.circleMarker(routeStart,{radius:8,color:'#fff',weight:2,fillColor:'#6ce1b6',fillOpacity:1}).addTo(map).bindPopup('Route starting point');
+  }
+  $('use-map-start').addEventListener('click',()=>{
+    routeStart=map.getCenter();
+    $('route-start-label').textContent='Starting point: selected map center';
+    placeRouteOrigin();
+    routeMessage('Starting point selected. Enter a destination and preview driving routes.');
+  });
+  function markerNearRoute(record,coordinates){
+    // Equirectangular approximation in metres, enough for 100-metre screening.
+    const cos=Math.cos(record.lat*Math.PI/180),sx=111320*cos,sy=111320;
+    const px=record.lon*sx,py=record.lat*sy;
+    for(let i=1;i<coordinates.length;i++){
+      const a=coordinates[i-1],b=coordinates[i];
+      const x1=a[0]*sx,y1=a[1]*sy,x2=b[0]*sx,y2=b[1]*sy;
+      const dx=x2-x1,dy=y2-y1,d2=dx*dx+dy*dy;
+      const t=d2?Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/d2)):0;
+      const ex=px-(x1+t*dx),ey=py-(y1+t*dy);
+      if(ex*ex+ey*ey<=10000)return true;
+    }
+    return false;
+  }
+  function countLoadedNear(route){
+    if(!mapped.length)return null;
+    return mapped.filter(camera=>markerNearRoute(camera,route.geometry.coordinates)).length;
+  }
+  function paintRoutes(){
+    routeLayer.clearLayers();
+    routePlans.forEach((route,index)=>{
+      const points=route.geometry.coordinates.map(c=>[c[1],c[0]]);
+      L.polyline(points,{color:index===selectedRoute?'#6ce1b6':'#8da8c0',weight:index===selectedRoute?7:4,opacity:index===selectedRoute?0.98:0.6}).addTo(routeLayer).on('click',()=>{selectedRoute=index;updateRouteChoices();});
+    });
+  }
+  function updateRouteChoices(){
+    if(!routePlans.length)return;
+    const counts=routePlans.map(countLoadedNear);
+    const minCount=mapped.length?Math.min(...counts):null;
+    const baseDuration=routePlans[0].duration;
+    $('route-results').innerHTML=routePlans.map((route,index)=>{
+      const minutes=Math.round(route.duration/60);
+      const miles=(route.distance/1609.344).toFixed(1);
+      const delta=Math.max(0,Math.round((route.duration-baseDuration)/60));
+      const near=counts[index];
+      const note=near===null?'Camera comparison not available: load camera markers first.':near+' loaded camera marker(s) within roughly 100 m of route — partial coverage';
+      const label=index===0?'Fastest returned route':'Alternative '+index;
+      const lower=near!==null && near===minCount && routePlans.length>1?' · Fewest nearby loaded markers':'';
+      return '<button type="button" class="route-choice'+(index===selectedRoute?' selected':'')+'" data-route-choice="'+index+'" aria-pressed="'+(index===selectedRoute)+'"><strong>'+label+lower+'</strong>'+minutes+' min · '+miles+' mi'+(delta?' · +'+delta+' min vs fastest':'')+'<small>'+note+'</small></button>';
+    }).join('');
+    $('route-results').querySelectorAll('[data-route-choice]').forEach(button=>button.addEventListener('click',()=>{
+      selectedRoute=Number(button.dataset.routeChoice);
+      paintRoutes();updateRouteChoices();
+      routeMessage('Route '+(selectedRoute+1)+' selected. Preview only; no active navigation.');
+    }));
+    paintRoutes();
+  }
+  $('route-form').addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!routeStart){routeMessage('Choose My location above or tap “Use map center as start” first.',true);return;}
+    const destination=$('route-destination').value.trim();
+    if(!destination)return;
+    const button=$('route-submit');
+    button.disabled=true;
+    routeMessage('Finding destination…');
+    try{
+      const placeUrl='https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(destination);
+      const placeResponse=await fetch(placeUrl,{headers:{'Accept':'application/json'}});
+      if(!placeResponse.ok)throw new Error('Destination search unavailable');
+      const places=await placeResponse.json();
+      if(!Array.isArray(places)||!places.length)throw new Error('Destination not found; include city and state');
+      const end=L.latLng(Number(places[0].lat),Number(places[0].lon));
+      if(!Number.isFinite(end.lat)||!Number.isFinite(end.lng))throw new Error('Invalid destination');
+      routeMessage('Calculating alternative driving routes…');
+      const coords=[routeStart.lng,routeStart.lat,end.lng,end.lat];
+      const url='https://router.project-osrm.org/route/v1/driving/'+coords[0]+','+coords[1]+';'+coords[2]+','+coords[3]+'?overview=full&geometries=geojson&alternatives=true&steps=false';
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),22000);
+      let routeResponse;
+      try{routeResponse=await fetch(url,{signal:controller.signal});}finally{clearTimeout(timer);}
+      if(!routeResponse.ok)throw new Error('Public routing service unavailable');
+      const data=await routeResponse.json();
+      if(data.code!=='Ok'||!Array.isArray(data.routes)||!data.routes.length)throw new Error('No driving route available');
+      routePlans=data.routes.filter(r=>r.geometry&&Array.isArray(r.geometry.coordinates)&&r.geometry.coordinates.length>1).sort((a,b)=>a.duration-b.duration).slice(0,4);
+      if(!routePlans.length)throw new Error('No usable route geometry available');
+      selectedRoute=0;
+      if(routeEndMarker)map.removeLayer(routeEndMarker);
+      routeEndMarker=L.circleMarker(end,{radius:8,color:'#fff',weight:2,fillColor:'#ffbb7b',fillOpacity:1}).addTo(map).bindPopup('Destination');
+      updateRouteChoices();
+      const box=L.latLngBounds(routePlans.flatMap(route=>route.geometry.coordinates.map(c=>[c[1],c[0]])));
+      map.fitBounds(box.pad(.12),{maxZoom:15});
+      routeMessage(routePlans.length+' driving route option(s) displayed. Tap an option to highlight it; camera counts only reflect previously loaded map data.');
+    }catch(error){
+      routeMessage(error.message==='Destination not found; include city and state'?error.message:'Cannot preview this route right now. Check the destination and try again; the free routing server may be busy.',true);
+    }finally{button.disabled=false;}
   });
   draw();
 })();
