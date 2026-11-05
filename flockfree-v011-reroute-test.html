@@ -565,7 +565,7 @@ function stopNavigation(reason='GPS guidance stopped.'){
  navSay(reason);
 }
 function navUpdateLocation(ll,accuracy){
- if(locationMarker){locationMarker.setLatLng([ll[1],ll[0]]);}else locationMarker=positionPin(ll,'#4b91ff','Live GPS position');
+ if(locationMarker){locationMarker.setLatLng([ll[1],ll[0]]);}else locationMarker=positionPin(ll,simRunning?'#ffd475':'#4b91ff',simRunning?'Simulated GPS position — not your real location':'Live GPS position');
  if(navAccuracyCircle){navAccuracyCircle.setLatLng([ll[1],ll[0]]).setRadius(accuracy);}
  else navAccuracyCircle=L.circle([ll[1],ll[0]],{radius:accuracy,color:'#6f9fd4',weight:1,fillOpacity:.07,interactive:false}).addTo(map);
  if(navFollow){map.setView([ll[1],ll[0]],Math.max(15,map.getZoom()),{animate:false});}
@@ -762,6 +762,7 @@ $('sim-run').onclick=async()=>{
   navVoice=false;$('nav-voice').textContent='Voice: Off';$('nav-voice').setAttribute('aria-pressed','false');
   navFollow=false;$('nav-follow').textContent='Follow map: Off';$('nav-follow').setAttribute('aria-pressed','false');
   simNote('1. Building a sample driving route in Citrus County, Florida…');
+  plans=[];routesLayer.clearLayers();$('routes').innerHTML='';$('steps').innerHTML='';
   chooseOrigin([-82.3238,28.8353],'simulated start — Inverness');
   chooseDestination([-82.5922,28.9005],'simulated destination — Crystal River',true);
   // The existing preview route button uses the unchanged v0.11 routing service.
