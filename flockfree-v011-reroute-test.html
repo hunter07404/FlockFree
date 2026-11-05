@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d171c">
+<title>FlockFree 0.11 | Camera Map and Navigation</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+:root{color-scheme:dark;--bg:#0c181e;--panel:#182a32;--ink:#f3faf8;--green:#6ce1b6;--edge:#395963;--muted:#b7cdd0}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--ink);margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:950px;margin:0 auto;padding:13px 12px 38px}
+header{display:flex;align-items:center;justify-content:space-between;gap:9px}h1{font-size:25px;letter-spacing:-1px;margin:0}h1 span{color:var(--green)}
+.pill{border:1px solid #508b74;background:#1b4036;color:#b2f2db;border-radius:32px;font-size:11px;font-weight:800;padding:5px 8px}
+section{background:var(--panel);border:1px solid #31515a;border-radius:16px;margin:13px 0;padding:13px}h2{font-size:17px;margin:0 0 9px}
+.help{color:var(--muted);font-size:12px;line-height:1.5}p{margin:8px 0}
+input{font:inherit;font-size:16px;color:white;background:#0f2129;border:1px solid #5d7881;border-radius:11px;padding:12px;min-width:0;flex:1 1 170px}
+button,.navlink{font:inherit;cursor:pointer;border-radius:10px;padding:10px 12px;min-height:42px;border:1px solid #57717b;color:white;background:#29464f;font-weight:700;text-decoration:none}
+button.primary,.navlink.primary{background:var(--green);color:#102b24;border-color:var(--green)}
+button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-visible,.navlink:focus-visible{outline:2px solid #a1ecd1;outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.between{justify-content:space-between}.row.action button{flex:1 1 40%}
+#map{height:53vh;max-height:560px;min-height:340px;border-radius:13px;border:1px solid #54727b;background:#28464f;position:relative;overflow:hidden}
+#cameraCanvas{position:absolute;inset:0;z-index:500;pointer-events:none}
+.leaflet-container{background:#28464f}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#18343c;color:white}.leaflet-control-attribution{color:#222!important}
+.leaflet-popup-content a{color:#8bdcf1}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0;color:#b4d0d0;font-size:12px}
+.dot{display:inline-block;height:10px;width:10px;border-radius:50%;margin-right:4px}
+#camera-status,#address-status,#route-status{padding:11px;border-radius:10px;background:#102630;border:1px solid #466570;font-size:13px;line-height:1.5;margin:9px 0}
+.warn{color:#ffd6a8!important;border-color:#956f45!important}
+#address-results,#routes{display:grid;gap:8px;margin-top:9px}
+#address-fallback{background:#17343b;border:1px solid #54847a;border-radius:12px;margin:11px 0;padding:12px}
+#address-fallback[hidden]{display:none}
+.choice{background:#203c43;display:block;width:100%;text-align:left;white-space:normal;line-height:1.45}
+.choice.active{border-color:var(--green);background:#244b3e}
+.choice strong{display:block;font-size:14px}.choice small{display:block;font-size:12px;font-weight:400;color:#bad1d4;margin-top:4px}
+#details{font-size:14px;min-height:56px;line-height:1.55;overflow-wrap:anywhere}
+#map-message{font-size:12px;color:#b3d7cc}
+.navlinks{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.navlinks .navlink{flex:1;text-align:center;min-width:145px;display:flex;align-items:center;justify-content:center}
+#steps{max-height:190px;overflow-y:auto;font-size:13px;padding-left:22px;color:#cee4e6}
+#nav-panel{margin:13px 0 0;background:#18392f;border:1px solid #58846e;border-radius:15px;padding:13px}
+#nav-panel[hidden]{display:none}
+#nav-instruction{font-size:20px;line-height:1.25;font-weight:800;margin:9px 0 3px;color:#f3fff8}
+#nav-next{font-size:16px;color:#b0f5d6;font-weight:750}
+#nav-remaining{font-size:12px;color:#b9d5cd;margin-top:7px}
+#nav-status{padding:9px 11px;border:1px solid #537f70;border-radius:9px;background:#142e29;margin:10px 0;font-size:13px}
+#nav-panel .row button{flex:1 1 115px}
+#nav-panel .minor{color:#a9cbbf;font-size:12px}
+#nav-panel .state{font-weight:750;color:#b3f3d5}
+#nav-panel .warn{color:#ffdb9e!important}
+#nav-start[disabled],#nav-stop[disabled]{opacity:.45}
+
+#steps li{padding:4px 0}hr{border:none;border-top:1px solid #46636b;margin:13px 0}
+footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
+@media(max-width:570px){.row.search input{flex-basis:100%}.row.search button{flex:1}#map{min-height:335px;height:51vh}}
+</style></head><body><main>
+<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.11</span></header>
+<section id="sim-panel" style="border:2px solid #7ad8ba;background:#112f2b">
+  <div class="row between"><h2>Test 7 — Automatic Rerouting</h2><span class="pill" id="sim-badge">SIMULATION ONLY</span></div>
+  <p class="help">This is a separate test page. It uses <strong>invented GPS readings</strong> around Inverness, Florida to check whether three off-route positions trigger a fresh driving route. No travel or location permission is needed.</p>
+  <button id="sim-run" class="primary" type="button" style="width:100%;padding:14px">Run automatic rerouting test</button>
+  <div id="sim-result" role="status" aria-live="polite" style="margin-top:13px;padding:12px;background:#0c2226;border:1px solid #5f8b8d;border-radius:9px;line-height:1.6">Not started. Tap the button once and check the result here.</div>
+  <p class="help"><strong>Do not use this test page for real navigation.</strong> It never starts a GPS watcher. Return to the regular FlockFree 0.11 page to navigate.</p>
+</section>
+
+<p class="help">Reliable camera map • Verified addresses • Live GPS guidance preview</p>
+<section>
+<div class="row between"><h2>Camera map</h2><span class="pill" id="map-badge">Map starting…</span></div>
+<div id="map" role="application" aria-label="Interactive map with public camera records"></div>
+<div class="legend"><span><i class="dot" style="background:#6ce1b6"></i>Flock-tagged</span><span><i class="dot" style="background:#efb577"></i>Other / unspecified ALPR</span><span><i class="dot" style="background:#91b9ff"></i>Private reports</span></div>
+<div class="row action"><button class="primary" id="locate">My location</button><button id="pin-destination">Select destination on map</button><button id="report">Report a camera</button></div>
+<div id="camera-status" role="status" aria-live="polite">Loading street map. Public camera points will load automatically when available.</div>
+<p class="help">The camera layer is separate from the map and search. Public ALPR reports are sourced from <a href="https://github.com/flockhopper3/deflock-data" target="_blank" rel="noopener noreferrer">FlockHopper's OpenStreetMap-derived camera tiles</a>. Reports can be incorrect, incomplete, or outdated. An empty area never means no cameras.</p>
+</section>
+<section>
+<h2>Enter destination</h2>
+<div class="row search"><input id="address" type="search" placeholder="Street address, city, state, ZIP" maxlength="160" autocomplete="street-address" aria-label="Destination address">
+<button class="primary" type="button" id="find">Find address</button></div>
+<p class="help">For Florida addresses, include the street number, city, FL or Florida, and ZIP. FlockFree looks for matching house numbers, streets, state and ZIP. If a property is missing from public map databases, you can position its pin manually.</p>
+<div class="navlinks"><a id="apple" class="navlink primary" target="_blank" rel="noopener noreferrer" href="https://maps.apple.com/">Navigate with Apple Maps</a>
+<a id="google" class="navlink" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/">Navigate with Google Maps</a></div>
+<p class="help">These navigation links use the destination you type and work without FlockFree's address lookup. Address searches also use U.S. Census and OpenStreetMap services. Open them in Safari for normal GPS navigation.</p>
+<div id="address-status" role="status">Type a destination and tap Find address, or tap a destination on the map.</div>
+<div id="address-results"></div>
+<div id="address-fallback" hidden>
+  <p class="help"><strong>Address not indexed?</strong> Find the street area and place the destination pin yourself. FlockFree will never guess your house location.</p>
+  <div class="row action">
+    <button id="find-street" type="button" class="primary">Locate street area</button>
+    <button id="pin-center" type="button">Use map center as destination</button>
+  </div>
+</div>
+<hr>
+<div class="row between"><span class="help" id="origin-label">Start: use My location or map center</span><button id="use-center">Start at map center</button></div>
+<div class="row" style="margin-top:9px"><button id="preview" type="button" class="primary" disabled>Preview route in FlockFree</button></div>
+<div id="route-status" role="status">Select a destination and starting point to preview alternative driving routes.</div>
+<div id="routes"></div><ol id="steps"></ol>
+<div id="nav-panel" hidden aria-label="Built-in GPS navigation testing panel">
+  <div class="row between"><strong>Live GPS guidance — Beta</strong><span class="pill" id="nav-state">Ready</span></div>
+  <div id="nav-instruction">Route selected</div>
+  <div id="nav-next">Start when you are ready</div>
+  <div id="nav-remaining">Estimated journey information will appear here.</div>
+  <div class="row action" style="margin-top:12px">
+    <button class="primary" id="nav-start" type="button">Start GPS guidance</button>
+    <button id="nav-stop" type="button" disabled>Stop guidance</button>
+    <button id="nav-voice" type="button" aria-pressed="true">Voice: On</button>
+    <button id="nav-follow" type="button" aria-pressed="true">Follow map: On</button>
+  </div>
+  <div id="nav-status" role="status" aria-live="polite">GPS guidance is experimental. Keep the page open and unlocked.</div>
+  <p class="minor">For testing only while parked or as a passenger. Directions and rerouting require mobile data. No live traffic, guaranteed voice playback in the background, camera-free routes, or reliable lock-screen navigation. Use Apple Maps or Google Maps for driving.</p>
+</div>
+
+<p class="help">Route preview and experimental GPS guidance use the public OSRM demonstration server (not live traffic). Camera-avoidance routing is not available. Built-in GPS guidance works only while the browser remains active; use Apple Maps or Google Maps for dependable turn-by-turn driving.</p>
+</section>
+<section><h2>Camera information</h2><div id="details">Tap a small camera marker to inspect a public record. At wider zoom levels, a tap may zoom in to provide details.</div></section>
+<section><h2>Privacy</h2><p class="help">Geolocation stays in this browser session. Streets, camera tiles, address searches, and routing use external services. Personal camera reports are saved only in this browser. FlockFree does not store a trip history. When GPS guidance is active, coordinates may be sent to the OSRM demonstration routing service for recalculation.</p></section>
+<footer>FlockFree v0.11 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const safe=str=>String(str==null?'':str).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const say=(id,msg,w=false)=>{const e=$(id);e.textContent=msg;e.classList.toggle('warn',!!w);};
+if(!window.L){say('camera-status','Leaflet could not load. Check your connection and reopen in Safari.',true);$('map-badge').textContent='Offline';return;}
+const map=L.map('map',{preferCanvas:true}).setView([39.5,-98.35],4);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+$('map-badge').textContent='Streets active';
+let origin=null,destination=null,destinationName='',originMarker=null,destinationMarker=null,locationMarker=null;
+let plans=[],chosenRoute=0,pickDestination=false,activePopup=null,manualPin=false;
+const routesLayer=L.layerGroup().addTo(map),privateLayer=L.layerGroup().addTo(map);
+function lngLatValid(v){return Array.isArray(v)&&Number.isFinite(v[0])&&Number.isFinite(v[1])&&Math.abs(v[1])<=90&&Math.abs(v[0])<=180;}
+function positionPin(p,color,label){
+ return L.circleMarker([p[1],p[0]],{radius:8,weight:3,color:'#fff',fillColor:color,fillOpacity:1}).addTo(map).bindPopup(label);
+}
+function chooseOrigin(p,label){
+ if(!lngLatValid(p))return;
+ origin=p;if(originMarker)map.removeLayer(originMarker);originMarker=positionPin(p,'#6ce1b6','Your chosen starting point');
+ $('origin-label').textContent='Start: '+label;
+ $('preview').disabled=!destination;
+}
+$('use-center').onclick=()=>{const p=map.getCenter();chooseOrigin([p.lng,p.lat],'selected map center');say('route-status','Starting point selected. Enter or select a destination.');};
+$('locate').onclick=()=>{
+ if(!navigator.geolocation){say('route-status','GPS is unavailable in this browser. Choose a map-center start instead.',true);return;}
+ say('route-status','Requesting permission to use your location…');
+ navigator.geolocation.getCurrentPosition(p=>{
+   const ll=[p.coords.longitude,p.coords.latitude];
+   if(locationMarker)map.removeLayer(locationMarker);
+   locationMarker=positionPin(ll,'#4b91ff','Your GPS position');
+   map.setView([ll[1],ll[0]],14);
+   chooseOrigin(ll,'current GPS location');
+   say('route-status','GPS position found. Enter your destination or select a point on the map.');
+ },err=>say('route-status',err.code===1?'GPS access denied. Allow location in Safari settings.':'GPS unavailable. Choose a map-center start.',true),{timeout:16000,maximumAge:45000,enableHighAccuracy:true});
+};
+function navigationLinks(){
+ const query=$('address').value.trim();
+ // Use destination coordinates for a manually selected map pin.
+ // Otherwise give native navigation the exact user-typed address, not our guessed geocoder result.
+ const target=(manualPin&&destination)?[destination[1],destination[0]].join(','):(query||(destination?[destination[1],destination[0]].join(','):null));
+ $('apple').href=target?'https://maps.apple.com/?daddr='+encodeURIComponent(target)+'&dirflg=d':'https://maps.apple.com/';
+ $('google').href=target?'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(target)+'&travelmode=driving':'https://www.google.com/maps/';
+}
+$('address').oninput=()=>{
+ stopNavigation('Destination changed. GPS guidance stopped.');
+ manualPin=false;destination=null;destinationName='';$('preview').disabled=true;plans=[];routesLayer.clearLayers();
+ $('address-results').innerHTML='';$('routes').innerHTML='';$('steps').innerHTML='';
+ $('address-fallback').hidden=true;
+ if(destinationMarker){map.removeLayer(destinationMarker);destinationMarker=null;}
+ navigationLinks();
+ say('address-status','Tap Find address to select an exact match; Apple Maps and Google Maps links already use the complete text you entered.');
+};
+navigationLinks();
+function chooseDestination(p,label,chosenManually=false){
+ if(!lngLatValid(p))return;
+ stopNavigation('Destination changed. GPS guidance stopped.');
+ manualPin=chosenManually;destination=p;destinationName=label;
+ if(destinationMarker)map.removeLayer(destinationMarker);
+ destinationMarker=positionPin(p,'#f1b36e','Selected destination: '+safe(label));
+ map.setView([p[1],p[0]],14);
+ $('preview').disabled=!origin;
+ say('address-status','Selected destination: '+label+'. '+(origin?'Tap Preview route in FlockFree.':'Tap My location or Start at map center.'));
+ navigationLinks();
+}
+$('pin-destination').onclick=()=>{
+ pickDestination=true;
+ say('address-status','Tap a location on the map to select it as your destination.');
+};
+$('pin-center').onclick=()=>{
+ const center=map.getCenter();
+ chooseDestination([center.lng,center.lat],'Manually selected map pin',true);
+ $('address-fallback').hidden=true;
+ say('address-status','Destination is your manually selected map center, NOT a verified street address. Confirm the pin before routing.',true);
+};
+// A map pin can always be chosen even when geocoding is incomplete.
+function showManualFallback(message){
+ $('address-fallback').hidden=false;
+ say('address-status',message+' You can search for the street area and then position the destination pin manually, or open Apple Maps above.',true);
+}
+const stateCodes='AL:Alabama,AK:Alaska,AZ:Arizona,AR:Arkansas,CA:California,CO:Colorado,CT:Connecticut,DE:Delaware,FL:Florida,GA:Georgia,HI:Hawaii,ID:Idaho,IL:Illinois,IN:Indiana,IA:Iowa,KS:Kansas,KY:Kentucky,LA:Louisiana,ME:Maine,MD:Maryland,MA:Massachusetts,MI:Michigan,MN:Minnesota,MS:Mississippi,MO:Missouri,MT:Montana,NE:Nebraska,NV:Nevada,NH:New Hampshire,NJ:New Jersey,NM:New Mexico,NY:New York,NC:North Carolina,ND:North Dakota,OH:Ohio,OK:Oklahoma,OR:Oregon,PA:Pennsylvania,RI:Rhode Island,SC:South Carolina,SD:South Dakota,TN:Tennessee,TX:Texas,UT:Utah,VT:Vermont,VA:Virginia,WA:Washington,WV:West Virginia,WI:Wisconsin,WY:Wyoming';
+const states=Object.fromEntries(stateCodes.split(',').map(p=>p.split(':')));
+function requestedState(text){
+ for(const [code,name] of Object.entries(states)){
+   if(new RegExp('\\b'+name+'\\b','i').test(text) || new RegExp('(?:\\s|,)'+code+'(?=\\s|,|\\d|$)','i').test(text))return name;
+ }
+ return null;
+}
+
+function addressNumber(s){return (s.match(/^\s*(\d+[A-Za-z]?)\b/)||[])[1]||'';}
+const abbrToState=states;
+function sameState(a,b){
+ if(!b)return true;
+ const norm=x=>{const t=String(x||'').trim().toUpperCase();return abbrToState[t]?abbrToState[t].toUpperCase():t;};
+ return norm(a)===norm(b);
+}
+function normalizeRoad(s){
+ return String(s||'').toUpperCase()
+  .replace(/\bNORTHEAST\b/g,'NE').replace(/\bNORTHWEST\b/g,'NW')
+  .replace(/\bSOUTHEAST\b/g,'SE').replace(/\bSOUTHWEST\b/g,'SW')
+  .replace(/\bNORTH\b/g,'N').replace(/\bSOUTH\b/g,'S')
+  .replace(/\bEAST\b/g,'E').replace(/\bWEST\b/g,'W')
+  .replace(/\bAVENUE\b/g,'AVE').replace(/\bBOULEVARD\b/g,'BLVD')
+  .replace(/\bSTREET\b/g,'ST').replace(/\bROAD\b/g,'RD')
+  .replace(/\bDRIVE\b/g,'DR').replace(/\bLANE\b/g,'LN')
+  .replace(/\bCOURT\b/g,'CT').replace(/\bPLACE\b/g,'PL')
+  .replace(/\bCIRCLE\b/g,'CIR').replace(/\bPARKWAY\b/g,'PKWY')
+  .replace(/\bHIGHWAY\b/g,'HWY').replace(/\bTERRACE\b/g,'TER')
+  .replace(/\b(\d+)(?:ST|ND|RD|TH)\b/g,'$1')
+  .replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+}
+function requestedParts(query){
+ const split=query.split(',').map(s=>s.trim()).filter(Boolean);
+ const street=addressNumber(query)?split[0].replace(/^\s*\d+[A-Za-z]?\s*/,''):null;
+ const city=split.length>=3?split[1]:null;
+ const zip=(query.match(/\b\d{5}(?:-\d{4})?\b/)||[])[0]?.slice(0,5)||'';
+ return {number:addressNumber(query),street,city,zip,state:requestedState(query)};
+}
+function roadComparable(a,b){
+ // Accept missing compass direction, but never treat opposing directions as interchangeable.
+ const x=normalizeRoad(a),y=normalizeRoad(b);
+ if(x===y)return true;
+ const dir=s=>s.match(/^(NE|NW|SE|SW|N|S|E|W) /)?.[1]||'';
+ const dx=dir(x),dy=dir(y);
+ if(dx&&dy&&dx!==dy)return false;
+ const strip=s=>s.replace(/^(NE|NW|SE|SW|N|S|E|W) /,'');
+ return strip(x)===strip(y);
+}
+function validCandidate(r,q){
+ if(!lngLatValid(r.ll)||!r.label)return false;
+ if(q.state&&!sameState(r.state,q.state))return false;
+ // If the user gave a ZIP, a different ZIP or a missing ZIP must not be accepted.
+ if(q.zip&&r.zip!==q.zip)return false;
+ if(q.number&&String(r.number).toUpperCase()!==q.number.toUpperCase())return false;
+ // When a street address was supplied, do not silently route to a city centre or another road.
+ if(q.street&&!roadComparable(q.street,r.road))return false;
+ // City is only required when ZIP is absent, to allow unincorporated postal-city names.
+ if(q.city&&!q.zip&&normalizeRoad(q.city)!==normalizeRoad(r.city))return false;
+ return true;
+}
+function standardize(items,provider){
+ if(!Array.isArray(items))return [];
+ if(provider==='census'){
+   return items.map(x=>{
+     const a=x.addressComponents||{};
+     return {
+       label:x.matchedAddress||'',
+       state:a.state||'',zip:a.zip||'',city:a.city||'',
+       number:(x.matchedAddress||'').match(/^\s*(\d+[A-Za-z]?)\b/)?.[1]||'',
+       road:[a.preDirection,a.preType,a.streetName,a.suffixType,a.suffixDirection].filter(Boolean).join(' '),
+       ll:[Number(x.coordinates?.x),Number(x.coordinates?.y)],provider:'U.S. Census',
+       estimate:true
+     };
+   });
+ }
+ if(provider==='arcgis')return items.map(x=>{
+   const a=x.attributes||{},st=String(a.StAddr||'');
+   return {
+     label:x.address||a.Match_addr||'',state:a.Region||'',zip:String(a.Postal||'').slice(0,5),
+     city:a.City||'',number:addressNumber(st||x.address||''),
+     road:st.replace(/^\s*\d+[A-Za-z]?\s*/,''),ll:[Number(x.location?.x),Number(x.location?.y)],
+     provider:'ArcGIS',estimate:a.Addr_type!=='PointAddress',score:Number(x.score)||0
+   };
+ });
+ if(provider==='nominatim')return items.map(x=>{
+   const a=x.address||{};
+   return {
+     label:x.display_name||'',state:a.state||'',zip:(a.postcode||'').slice(0,5),
+     city:a.city||a.town||a.village||a.hamlet||'',
+     number:a.house_number||'',
+     road:a.road||a.pedestrian||a.residential||a.street||a.highway||'',
+     ll:[Number(x.lon),Number(x.lat)],provider:'OpenStreetMap',estimate:false
+   };
+ });
+ return items.map(x=>{
+   const a=x.properties||{};
+   return {
+     label:[a.housenumber,a.street,a.city,a.state,a.postcode].filter(Boolean).join(', '),
+     state:a.state||'',zip:(a.postcode||'').slice(0,5),
+     city:a.city||'',number:a.housenumber||'',road:a.street||'',
+     ll:[Number(x.geometry?.coordinates?.[0]),Number(x.geometry?.coordinates?.[1])],
+     provider:'Photon',estimate:false
+   };
+ });
+}
+// The Census geocoder does not support cross-origin JSON fetch.
+// Its documented JSONP callback can be requested from a static GitHub Pages site.
+function censusLookup(query){
+ return new Promise((resolve,reject)=>{
+   const name='flockFreeCensus'+Date.now()+Math.floor(Math.random()*100000);
+   const script=document.createElement('script');
+   let settled=false;
+   const finish=(result,error)=>{
+     if(settled)return;
+     settled=true;clearTimeout(timer);
+     script.remove();
+     try{delete window[name];}catch(e){window[name]=undefined;}
+     if(error)reject(error);else resolve(result);
+   };
+   const timer=setTimeout(()=>finish(null,new Error('Census lookup timeout')),7000);
+   window[name]=(data)=>finish(data?.result?.addressMatches||[]);
+   script.onerror=()=>finish(null,new Error('Census lookup failed'));
+   script.src='https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address='+
+     encodeURIComponent(query)+'&benchmark=Public_AR_Current&format=jsonp&callback='+name;
+   document.head.appendChild(script);
+ });
+}
+async function nominatimLookup(query){
+ const c=new AbortController(),t=setTimeout(()=>c.abort(),9500);
+ try{
+   const url='https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&addressdetails=1&limit=10&q='+encodeURIComponent(query);
+   const res=await fetch(url,{signal:c.signal,headers:{Accept:'application/json'}});
+   if(!res.ok)throw new Error('OSM address status '+res.status);
+   return await res.json();
+ }finally{clearTimeout(t);}
+}
+async function photonLookup(query){
+ const c=new AbortController(),t=setTimeout(()=>c.abort(),8500);
+ try{
+   const url='https://photon.komoot.io/api/?q='+encodeURIComponent(query)+'&limit=10&lang=en';
+   const res=await fetch(url,{signal:c.signal});
+   if(!res.ok)throw new Error('Photon address status '+res.status);
+   const json=await res.json();
+   return json.features||[];
+ }finally{clearTimeout(t);}
+}
+async function arcgisLookup(query){
+ // For non-stored prototyping only; this public endpoint may require credentials or rate-limit.
+ const c=new AbortController(),t=setTimeout(()=>c.abort(),9000);
+ try{
+   const url='https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine='+
+      encodeURIComponent(query)+'&maxLocations=8&outFields=Addr_type,StAddr,City,Region,Postal,Match_addr&forStorage=false&f=json';
+   const response=await fetch(url,{signal:c.signal});
+   if(!response.ok)throw Error('ArcGIS HTTP '+response.status);
+   const data=await response.json();
+   if(data.error)throw Error('ArcGIS unavailable');
+   return (data.candidates||[]).filter(r=>r.score>=90 && ['PointAddress','StreetAddress','Subaddress'].includes(r.attributes?.Addr_type));
+ }finally{clearTimeout(t);}
+}
+function streetAreaQuery(query){
+ const p=requestedParts(query);
+ if(!p.street||!p.state)return null;
+ return {street:p.street,city:p.city,zip:p.zip,state:p.state,
+    request:[p.street,p.city,p.state,p.zip].filter(Boolean).join(', ')};
+}
+async function locateStreetArea(){
+ const q=$('address').value.trim(),road=streetAreaQuery(q);
+ if(!road){showManualFallback('Enter a street, city and state before locating the area.');return;}
+ $('find-street').disabled=true;
+ say('address-status','Looking up the street area, not an individual property. You will place the pin yourself.');
+ try{
+   let results=[];
+   const lookup=await Promise.allSettled([
+     nominatimLookup(road.request),
+     photonLookup(road.request)
+   ]);
+   if(lookup[0].status==='fulfilled')results.push(...standardize(lookup[0].value,'nominatim'));
+   if(lookup[1].status==='fulfilled')results.push(...standardize(lookup[1].value,'photon'));
+   const onStreet=results.find(r=>lngLatValid(r.ll)&&sameState(r.state,road.state)&&
+      roadComparable(road.street,r.road)&&(!road.zip||!r.zip||r.zip===road.zip));
+   if(onStreet){
+     map.setView([onStreet.ll[1],onStreet.ll[0]],17);
+     pickDestination=true;
+     say('address-status','Found an approximate area for '+road.street+' in '+road.state+'. Scroll to the map and TAP the exact property location to place a destination pin. The map is NOT showing a verified house number.',true);
+   }else{
+     const query=[road.city,road.state,road.zip].filter(Boolean).join(', ');
+     const city=await nominatimLookup(query);
+     const places=standardize(city,'nominatim');
+     const inArea=places.find(r=>lngLatValid(r.ll)&&sameState(r.state,road.state)&&(!road.zip||!r.zip||r.zip===road.zip));
+     if(inArea){
+       map.setView([inArea.ll[1],inArea.ll[0]],12);
+       pickDestination=true;
+       say('address-status','Only the general town/ZIP area was found. Move the map to the correct property, then tap the location. This is NOT a verified address match.',true);
+     }else{
+       showManualFallback('The street area could not be located from these public map services.');
+     }
+   }
+ }catch(e){showManualFallback('Street-area lookup is unavailable right now.');}
+ finally{$('find-street').disabled=false;}
+}
+$('find-street').onclick=locateStreetArea;
+let candidates=[];
+$('find').onclick=async()=>{
+ const query=$('address').value.trim();
+ if(!query){say('address-status','Enter a street address and city, state, and ZIP code.',true);return;}
+ const requested=requestedParts(query);
+ $('find').disabled=true;
+ candidates=[];destination=null;destinationName='';$('preview').disabled=true;
+ plans=[];routesLayer.clearLayers();$('routes').innerHTML='';$('steps').innerHTML='';
+ $('address-results').innerHTML='';
+ $('address-fallback').hidden=true;
+ if(destinationMarker){map.removeLayer(destinationMarker);destinationMarker=null;}
+ say('address-status','Checking house number, street, state, and ZIP. Unverified matches will not be used for routing.');
+ try{
+   const outcomes=await Promise.allSettled([
+     censusLookup(query),nominatimLookup(query),arcgisLookup(query)
+   ]);
+   let results=[];
+   if(outcomes[0].status==='fulfilled')results.push(...standardize(outcomes[0].value,'census'));
+   if(outcomes[1].status==='fulfilled')results.push(...standardize(outcomes[1].value,'nominatim'));
+   if(outcomes[2].status==='fulfilled')results.push(...standardize(outcomes[2].value,'arcgis'));
+   // Photon is a fallback, not a reason to accept mismatched addresses.
+   if(!results.some(r=>validCandidate(r,requested))){
+     try{results.push(...standardize(await photonLookup(query),'photon'));}catch(e){console.warn('Address fallback unavailable',e);}
+   }
+   const found=new Set();
+   candidates=results.filter(r=>{
+     if(!validCandidate(r,requested))return false;
+     const key=r.ll.map(n=>n.toFixed(6)).join(',');
+     if(found.has(key))return false;
+     found.add(key);return true;
+   }).slice(0,6);
+   if(!candidates.length){
+     showManualFallback('The public geocoders did not verify this house number. FlockFree will not navigate to a guessed building.');
+     return;
+   }
+   $('address-results').innerHTML='<p class="help"><strong>Matching addresses — tap to review the pin:</strong></p>'+
+     candidates.map((r,i)=>'<button class="choice" type="button" data-address="'+i+'"><strong>'+safe(r.label)+'</strong><small>'+
+       safe(r.provider)+(r.estimate?' · Estimated point along the road, not the building':' · Address record')+
+       ' · ZIP '+safe(r.zip||'not provided')+'</small></button>').join('');
+   $('address-results').querySelectorAll('[data-address]').forEach(button=>button.onclick=()=>{
+     const r=candidates[Number(button.dataset.address)];
+     $('address-results').querySelectorAll('[data-address]').forEach(b=>b.classList.toggle('active',b===button));
+     chooseDestination(r.ll,r.label);
+     say('address-status','Address components matched. '+(r.estimate?
+       'Census coordinates are estimated along the street, not the exact driveway. Check the pin before previewing.':
+       'Check the displayed destination pin before previewing.')+' For regular driving navigation, use Apple Maps.',r.estimate);
+   });
+   say('address-status',candidates.length+' verified address candidate(s). Tap the matching one and inspect its pin.');
+ }catch(e){
+   showManualFallback('Address verification is unavailable right now.');
+ }finally{$('find').disabled=false;}
+};
+const metres=m=>m>=1609.344?(m/1609.344).toFixed(1)+' miles':Math.max(10,Math.round(m*3.28084/10)*10)+' feet';
+function turnText(step){const m=step.maneuver||{},t=m.type||'',dir=m.modifier||'',road=step.name?' onto '+step.name:'';
+ if(t==='depart')return 'Start on '+(step.name||'the road');if(t==='arrive')return 'Arrive at destination';
+ if(t==='roundabout')return 'Take roundabout exit '+(m.exit||'')+road;
+ if(t==='turn')return 'Turn '+dir+road;
+ if(t==='continue')return 'Continue '+(dir||'straight')+road;
+ if(t==='merge')return 'Merge '+dir+road;
+ if(t==='fork')return 'Keep '+dir+road;
+ return t.replace(/^\w/,c=>c.toUpperCase())+road;
+}
+function displayRoute(i,keepNavigation=false){
+ if(navActive&&!keepNavigation)stopNavigation('Route changed. GPS guidance stopped; restart when ready.');
+ chosenRoute=i;routesLayer.clearLayers();
+ for(let j=0;j<plans.length;j++){
+   const latlngs=plans[j].geometry.coordinates.map(p=>[p[1],p[0]]);
+   L.polyline(latlngs,{color:j===i?'#6ce1b6':'#8ea7bd',weight:j===i?7:4,opacity:j===i?1:.6}).addTo(routesLayer).on('click',()=>displayRoute(j));
+ }
+ $('routes').querySelectorAll('[data-route]').forEach(b=>b.classList.toggle('active',Number(b.dataset.route)===i));
+ const steps=plans[i].legs.flatMap(l=>l.steps||[]);
+ $('steps').innerHTML=steps.map(s=>'<li>'+safe(turnText(s))+' <small class="help">('+metres(s.distance||0)+')</small></li>').join('');
+ say('route-status','Route '+(i+1)+' highlighted. Use Start GPS guidance for foreground testing, or open Apple Maps / Google Maps for driving.');
+ navSetRoute();
+}
+$('preview').onclick=async()=>{
+ stopNavigation('New route preview requested; GPS guidance stopped.');
+ if(!origin||!destination){say('route-status','Choose a starting point and confirm a destination first.',true);return;}
+ $('preview').disabled=true;say('route-status','Calculating routes…');
+ try{
+   const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+origin.join(',')+';'+destination.join(',')+'?overview=full&geometries=geojson&steps=true&alternatives=true');
+   if(!r.ok)throw Error('Routing service unavailable');
+   const data=await r.json();
+   if(data.code!=='Ok'||!Array.isArray(data.routes)||!data.routes.length)throw Error('No driving route');
+   plans=data.routes.filter(p=>Array.isArray(p.geometry?.coordinates)&&p.geometry.coordinates.length>1).sort((a,b)=>a.duration-b.duration).slice(0,4);
+   if(!plans.length)throw Error('No usable geometry');
+   $('routes').innerHTML=plans.map((r,i)=>'<button class="choice" type="button" data-route="'+i+'"><strong>'+(i?'Alternative '+i:'Fastest route')+': '+Math.round(r.duration/60)+' min · '+(r.distance/1609.344).toFixed(1)+' mi</strong><small>Not live traffic · Not verified camera-avoidance</small></button>').join('');
+   $('routes').querySelectorAll('[data-route]').forEach(b=>b.onclick=()=>displayRoute(Number(b.dataset.route)));
+   displayRoute(0);
+   map.fitBounds(L.latLngBounds(plans[0].geometry.coordinates.map(p=>[p[1],p[0]])).pad(.14),{maxZoom:15});
+ }catch(e){say('route-status','FlockFree route preview unavailable. Use Apple Maps or Google Maps above for directions.',true);}
+ finally{$('preview').disabled=!destination||!origin;}
+};
+
+// === FlockFree 0.11: Foreground GPS navigation prototype ===
+// Uses route geometry and OSRM maneuver locations. Location is not persisted.
+let navWatchId=null,navActive=false,navFollow=true,navVoice=true;
+let navLastGPS=null,navRouteMeta=null,navStepIndex=1;
+let navOffRouteCount=0,navRerouting=false,navRouteGeneration=0,navLastReroute=0,navLastSpeechAt=0;
+let navSpeechStages=new Set(),navAccuracyCircle=null;
+function navSay(message,warning=false){say('nav-status',message,warning);}
+function navState(state){$('nav-state').textContent=state;}
+function navMeters(n){return n>=1609.344?(n/1609.344).toFixed(1)+' mi':Math.max(0,Math.round(n*3.28084/10)*10)+' ft';}
+function navEta(seconds){const m=Math.max(1,Math.round(seconds/60));return m>=60?Math.floor(m/60)+' hr '+(m%60)+' min':m+' min';}
+function navSpeak(text){
+ if(!navVoice || !('speechSynthesis' in window))return;
+ try{
+  const synth=window.speechSynthesis;
+  synth.cancel();const u=new SpeechSynthesisUtterance(text);
+  u.rate=.98;u.volume=1;u.lang='en-US';synth.speak(u);
+  navLastSpeechAt=Date.now();
+ }catch(error){navSay('Voice is unavailable in this browser. On-screen directions still work.',true);}
+}
+function navStopVoice(){if('speechSynthesis' in window){try{speechSynthesis.cancel();}catch(e){}}}
+function navDistance(a,b){
+ const r=6371000,dx=(b[0]-a[0])*Math.PI/180,dy=(b[1]-a[1])*Math.PI/180;
+ const lat1=a[1]*Math.PI/180,lat2=b[1]*Math.PI/180;
+ const h=Math.sin(dy/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dx/2)**2;
+ return 2*r*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
+}
+function navBuildGeometry(route){
+ const coords=route.geometry?.coordinates;
+ if(!Array.isArray(coords)||coords.length<2)return null;
+ const base=coords[0],scaleX=111320*Math.cos(base[1]*Math.PI/180),scaleY=111320;
+ const points=coords.map(p=>({x:(p[0]-base[0])*scaleX,y:(p[1]-base[1])*scaleY}));
+ let total=0;const segs=[];
+ for(let i=1;i<points.length;i++){
+  const a=points[i-1],b=points[i],dx=b.x-a.x,dy=b.y-a.y;
+  const length=Math.hypot(dx,dy);if(length<.01)continue;
+  segs.push({a,b,dx,dy,len:length,start:total});total+=length;
+ }
+ if(!segs.length)return null;
+ const project=(ll)=>{
+  const x=(ll[0]-base[0])*scaleX,y=(ll[1]-base[1])*scaleY;
+  let best={distance:Infinity,progress:0};
+  for(const seg of segs){
+   const t=Math.max(0,Math.min(1,((x-seg.a.x)*seg.dx+(y-seg.a.y)*seg.dy)/(seg.len*seg.len)));
+   const gap=Math.hypot(x-(seg.a.x+seg.dx*t),y-(seg.a.y+seg.dy*t));
+   if(gap<best.distance)best={distance:gap,progress:seg.start+seg.len*t};
+  }
+  return best;
+ };
+ const steps=route.legs.flatMap(l=>l.steps||[]).filter(s=>Array.isArray(s.maneuver?.location));
+ const turnPoints=steps.map(s=>({step:s,at:project(s.maneuver.location).progress}));
+ return {project,steps:turnPoints,total,routeDistance:route.distance,routeDuration:route.duration};
+}
+function navSetRoute(){
+ const route=plans[chosenRoute];
+ navRouteMeta=route?navBuildGeometry(route):null;
+ navStepIndex=1;navOffRouteCount=0;navSpeechStages=new Set();
+ if(!navRouteMeta){$('nav-panel').hidden=true;return;}
+ $('nav-panel').hidden=false;
+ const upcoming=navRouteMeta.steps[Math.min(1,navRouteMeta.steps.length-1)];
+ $('nav-instruction').textContent=upcoming?turnText(upcoming.step):'Route selected';
+ $('nav-next').textContent='Tap Start GPS guidance when ready';
+ $('nav-remaining').textContent=navMeters(route.distance)+' total · '+navEta(route.duration)+' estimated · no live traffic';
+ if(!navActive){navState('Ready');navSay('GPS guidance is available for foreground testing. Do not rely on it while driving.');}
+}
+function stopNavigation(reason='GPS guidance stopped.'){
+ navRouteGeneration++;
+ if(navWatchId!==null){
+  navigator.geolocation.clearWatch(navWatchId);navWatchId=null;
+ }
+ navActive=false;navRerouting=false;navOffRouteCount=0;
+ navStopVoice();
+ $('nav-start').disabled=false;$('nav-stop').disabled=true;
+ if(navAccuracyCircle){map.removeLayer(navAccuracyCircle);navAccuracyCircle=null;}
+ navState('Stopped');
+ navSay(reason);
+}
+function navUpdateLocation(ll,accuracy){
+ if(locationMarker){locationMarker.setLatLng([ll[1],ll[0]]);}else locationMarker=positionPin(ll,'#4b91ff','Live GPS position');
+ if(navAccuracyCircle){navAccuracyCircle.setLatLng([ll[1],ll[0]]).setRadius(accuracy);}
+ else navAccuracyCircle=L.circle([ll[1],ll[0]],{radius:accuracy,color:'#6f9fd4',weight:1,fillOpacity:.07,interactive:false}).addTo(map);
+ if(navFollow){map.setView([ll[1],ll[0]],Math.max(15,map.getZoom()),{animate:false});}
+}
+function navDisplayCurrent(progress){
+ if(!navRouteMeta)return;
+ const turns=navRouteMeta.steps;
+ if(!turns.length){navSay('The route has no turn-by-turn maneuvers available.',true);return;}
+ let i=Math.min(Math.max(1,navStepIndex),turns.length-1);
+ while(i<turns.length-1&&turns[i].at<progress-25)i++;
+ navStepIndex=i;
+ const step=turns[i].step,remainingToTurn=Math.max(0,turns[i].at-progress);
+ const remainingRoute=Math.max(0,navRouteMeta.total-progress);
+ const fraction=navRouteMeta.total?remainingRoute/navRouteMeta.total:1;
+ const eta=navRouteMeta.routeDuration*fraction;
+ $('nav-instruction').textContent=turnText(step);
+ $('nav-next').textContent=step.maneuver?.type==='arrive'?'Destination '+navMeters(remainingToTurn)+' ahead':'Next maneuver in '+navMeters(remainingToTurn);
+ $('nav-remaining').textContent='About '+navMeters(navRouteMeta.routeDistance*fraction)+' remaining · '+navEta(eta)+' estimated · no live traffic';
+ const text=turnText(step),key='step'+i,now=Date.now();
+ let stage='';
+ if(remainingToTurn<45)stage='now';
+ else if(remainingToTurn<180)stage='near';
+ else if(remainingToTurn<600)stage='mid';
+ else stage='far';
+ const stageKey=key+':'+stage;
+ if(!navSpeechStages.has(stageKey)&&now-navLastSpeechAt>5500){
+  const prompt=stage==='now'?'Now, '+text:stage==='far'?text:'In '+navMeters(remainingToTurn)+', '+text;
+  navSpeak(prompt);navSpeechStages.add(stageKey);
+ }
+}
+async function navRecalculate(ll,generation){
+ if(navRerouting||!destination)return;
+ navRerouting=true;navLastReroute=Date.now();
+ navState('Rerouting');navSay('Away from the planned route. Calculating an updated route…');
+ try{
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),18000);
+  let response;
+  try{
+   const url='https://router.project-osrm.org/route/v1/driving/'+ll.join(',')+';'+destination.join(',')+
+     '?overview=full&geometries=geojson&steps=true&alternatives=false';
+   response=await fetch(url,{signal:c.signal});
+  }finally{clearTimeout(t);}
+  if(!response.ok)throw Error('Rerouting service unavailable');
+  const data=await response.json();
+  if(data.code!=='Ok'||!Array.isArray(data.routes)||!data.routes.length)throw Error('No route returned');
+  if(!navActive||generation!==navRouteGeneration)return;
+  const route=data.routes[0];
+  if(!route.geometry?.coordinates||!route.legs?.length)throw Error('Incomplete reroute');
+  plans=[route];chosenRoute=0;
+  $('routes').innerHTML='<button class="choice active" type="button" data-route="0"><strong>Updated route: '+Math.round(route.duration/60)+' min · '+(route.distance/1609.344).toFixed(1)+' mi</strong><small>Recalculated using current GPS position · No live traffic</small></button>';
+  $('routes').querySelector('[data-route="0"]').onclick=()=>displayRoute(0);
+  displayRoute(0,true);
+  navOffRouteCount=0;navRerouting=false;
+  navState('GPS active');navSay('Updated route calculated. Follow on-screen guidance; confirm against road signs.');
+  navSpeak('Route updated');
+  if(simRunning)simComplete(true,'The same rerouting code returned a new driving route after exactly three simulated off-route GPS readings.');
+ }catch(error){
+  if(navActive&&generation===navRouteGeneration){
+   navState('Rerouting unavailable');
+   navSay('Off route, but the public routing service did not respond. Follow road signs or use Apple Maps / Google Maps. Trying again later.',true);
+   if(simRunning)simComplete(false,'The app triggered rerouting after three readings, but the public routing service failed to return a new route.');
+  }
+ }finally{navRerouting=false;}
+}
+function navOnFix(position){
+ if(!navActive)return;
+ const ll=[position.coords.longitude,position.coords.latitude],accuracy=Number(position.coords.accuracy);
+ if(!lngLatValid(ll))return;
+ const currentAccuracy=Number.isFinite(accuracy)?Math.max(5,accuracy):150;
+ navLastGPS=ll;navUpdateLocation(ll,currentAccuracy);
+ if(currentAccuracy>100){
+  navState('Weak GPS');
+  navSay('GPS accuracy is '+Math.round(currentAccuracy)+' m. Waiting for a clearer signal before giving turn prompts.',true);
+  return;
+ }
+ if(!navRouteMeta){navState('No route');return;}
+ const point=navRouteMeta.project(ll);
+ // Require three usable location fixes substantially away from the route.
+ // GPS drift and a single bad fix must not trigger a reroute.
+ const limit=Math.max(75,2*currentAccuracy);
+ if(point.distance>limit){
+  navOffRouteCount++;
+  if(navOffRouteCount>=3&&!navRerouting&&Date.now()-navLastReroute>45000){
+   navRecalculate(ll,navRouteGeneration);
+  }else if(!navRerouting){
+   navState('Check route');navSay('GPS appears '+Math.round(point.distance)+' m from the route. Waiting to confirm before recalculating.');
+  }
+  return;
+ }
+ navOffRouteCount=0;
+ if(!navRerouting){
+  navState('GPS active');
+  navSay('GPS tracking active · accuracy '+Math.round(currentAccuracy)+' m · Safari must stay open.');
+  navDisplayCurrent(point.progress);
+ }
+ if(destination&&navDistance(ll,destination)<35&&currentAccuracy<40){
+  stopNavigation('Near your destination. Check the entrance and safely stop guidance.');navState('Arrived nearby');
+ }
+}
+$('nav-start').onclick=()=>{
+ if(navActive)return;
+ if(!navigator.geolocation){navSay('GPS is unavailable in this browser. Use Apple Maps for navigation.',true);return;}
+ if(!destination||!plans.length||!navRouteMeta){navSay('Calculate and select a driving route before starting GPS guidance.',true);return;}
+ navActive=true;navOffRouteCount=0;navLastReroute=0;navLastSpeechAt=0;navSpeechStages=new Set();
+ navRouteGeneration++;
+ const generation=navRouteGeneration;
+ $('nav-start').disabled=true;$('nav-stop').disabled=false;
+ navState('Acquiring GPS');
+ navSay('Requesting live GPS. Keep Safari visible and your phone unlocked while testing.');
+ navSpeak('FlockFree GPS guidance started. Keep this page visible.');
+ try{
+  navWatchId=navigator.geolocation.watchPosition(
+   p=>{if(navActive&&generation===navRouteGeneration)navOnFix(p);},
+   err=>{
+    if(!navActive||generation!==navRouteGeneration)return;
+    if(err.code===1)stopNavigation('Location permission denied. Check Safari location settings.');
+    else{navState('GPS interrupted');navSay('GPS updates interrupted. Check location access and signal; do not rely on guidance until updates return.',true);}
+   },{enableHighAccuracy:true,maximumAge:2000,timeout:20000}
+  );
+ }catch(error){stopNavigation('Unable to start GPS tracking. Use Apple Maps instead.');}
+};
+$('nav-stop').onclick=()=>stopNavigation();
+$('nav-voice').onclick=()=>{
+ navVoice=!navVoice;
+ $('nav-voice').textContent='Voice: '+(navVoice?'On':'Off');
+ $('nav-voice').setAttribute('aria-pressed',String(navVoice));
+ if(!navVoice)navStopVoice();
+ else if(navActive)navSpeak('Voice guidance enabled');
+};
+$('nav-follow').onclick=()=>{
+ navFollow=!navFollow;
+ $('nav-follow').textContent='Follow map: '+(navFollow?'On':'Off');
+ $('nav-follow').setAttribute('aria-pressed',String(navFollow));
+ if(navFollow&&navLastGPS)map.setView([navLastGPS[1],navLastGPS[0]],Math.max(15,map.getZoom()));
+};
+map.on('dragstart',()=>{
+ if(navActive&&navFollow){
+  navFollow=false;$('nav-follow').textContent='Follow map: Off';$('nav-follow').setAttribute('aria-pressed','false');
+ }
+});
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden&&navActive)navSay('Safari is no longer in the foreground. GPS and voice may stop until you return. Use a dedicated navigation app for driving.',true);
+ if(!document.hidden&&navActive)navSay('Safari is visible. GPS guidance remains experimental; wait for a fresh location fix.');
+});
+window.addEventListener('pagehide',()=>{
+ if(navWatchId!==null)navigator.geolocation.clearWatch(navWatchId);
+ navStopVoice();
+});
+
+
+// === Isolated FlockFree v0.11 rerouting regression test ===
+// Uses mock GPS only. Never obtains the device location.
+let simRunning=false,simOriginalRoute=null,simMessages=[];
+function simNote(message){
+ simMessages.push(message);
+ $('sim-result').textContent=simMessages.join('\n');
+ $('sim-result').style.whiteSpace='pre-line';
+}
+function simComplete(passed,details){
+ if(!simRunning)return;
+ simNote((passed?'PASS: ':'INCOMPLETE: ')+details);
+ $('sim-badge').textContent=passed?'PASS':'NOT VERIFIED';
+ $('sim-badge').style.color=passed?'#9df6cf':'#ffdd9e';
+ simRunning=false;
+ if(navActive)stopNavigation('Simulation finished. No live GPS was used.');
+ if(locationMarker){map.removeLayer(locationMarker);locationMarker=null;}
+ $('sim-run').disabled=false;$('sim-run').textContent='Run test again';
+ if(passed&&plans[0]?.geometry?.coordinates?.length>1){
+  const coords=plans[0].geometry.coordinates;
+  map.fitBounds(L.latLngBounds(coords.map(p=>[p[1],p[0]])).pad(.14),{maxZoom:13});
+ }
+}
+function simFindOffRoutePoint(route){
+ const coords=route.geometry.coordinates;
+ const anchors=[coords[0],coords[Math.floor(coords.length*.08)],coords[Math.floor(coords.length*.15)]];
+ const cos=Math.max(.25,Math.cos((anchors[0][1]||0)*Math.PI/180));
+ const deltas=[[0,.005],[0,-.005],[.005/cos,0],[-.005/cos,0],[.008/cos,.004],[-.008/cos,-.004]];
+ let best=null;
+ for(const a of anchors){
+  for(const d of deltas){
+   const candidate=[a[0]+d[0],a[1]+d[1]];
+   const match=navRouteMeta.project(candidate);
+   if(!best||match.distance>best.distance)best={ll:candidate,distance:match.distance};
+  }
+ }
+ return best;
+}
+$('sim-run').onclick=async()=>{
+ if(simRunning)return;
+ simRunning=true;simMessages=[];$('sim-run').disabled=true;$('sim-badge').textContent='TEST RUNNING';
+ $('sim-run').textContent='Testing…';
+ try{
+  if(navActive)stopNavigation('Switching to the simulated reroute test.');
+  navVoice=false;$('nav-voice').textContent='Voice: Off';$('nav-voice').setAttribute('aria-pressed','false');
+  navFollow=false;$('nav-follow').textContent='Follow map: Off';$('nav-follow').setAttribute('aria-pressed','false');
+  simNote('1. Building a sample driving route in Citrus County, Florida…');
+  chooseOrigin([-82.3238,28.8353],'simulated start — Inverness');
+  chooseDestination([-82.5922,28.9005],'simulated destination — Crystal River',true);
+  // The existing preview route button uses the unchanged v0.11 routing service.
+  await $('preview').onclick();
+  if(!plans.length||!navRouteMeta)throw Error('Sample route was not returned by the routing service.');
+  simOriginalRoute=plans[chosenRoute];
+  simNote('2. Original route calculated ('+(simOriginalRoute.distance/1609.344).toFixed(1)+' miles).');
+  const mock=simFindOffRoutePoint(simOriginalRoute);
+  if(!mock||mock.distance<160)throw Error('Could not generate a location far enough away from the sample route.');
+  simNote('3. Simulated GPS position is '+Math.round(mock.distance)+' meters away from the route.');
+  navActive=true;navWatchId=null;navOffRouteCount=0;navRerouting=false;navLastReroute=0;
+  navRouteGeneration++;
+  $('nav-start').disabled=true;$('nav-stop').disabled=false;
+  navState('SIMULATED GPS');
+  for(let i=1;i<=3;i++){
+   if(!simRunning)break;
+   navOnFix({coords:{longitude:mock.ll[0],latitude:mock.ll[1],accuracy:10}});
+   const count=navOffRouteCount;
+   const began=navRerouting;
+   simNote('4. Fake GPS reading '+i+'/3: '+(i<3?'holding off reroute':'reroute request started')+'.');
+   if(i<3&&(count!==i||began))throw Error('Rerouting activated before three consecutive off-route readings.');
+   if(i===3&&!began)throw Error('Three off-route readings did not activate route recalculation.');
+   if(i<3)await new Promise(resolve=>setTimeout(resolve,650));
+  }
+  if(simRunning)simNote('5. Contacting the routing service for a new route…');
+  // Success / failure is reported by the production recalculation callback below.
+ }catch(e){
+  simComplete(false,String(e.message||e));
+ }
+};
+
+// Tile decoding for MVT point geometry. Unlike vector tile canvas scaling,
+// fixed-size circles are redrawn in screen pixels even at high map zoom.
+const canvas=document.createElement('canvas');canvas.id='cameraCanvas';$('map').appendChild(canvas);
+const ctx=canvas.getContext('2d'),cache=new Map();let visibleRecords=[],hitRecords=[],requestSerial=0,loadingCamera=false;
+let loadedTiles=0,failTiles=0,lastView='';
+const decodeText=(bytes,a,b)=>new TextDecoder().decode(bytes.subarray(a,b));
+function varint(b,state){let value=0,shift=0;for(let count=0;count<11;count++){
+ if(state.i>=b.length)throw Error('MVT truncated');
+ const c=b[state.i++];value+=(c&127)*2**shift;if(!(c&128))return value;
+ shift+=7;
+}throw Error('MVT varint too long');}
+function iterate(b,a,end,callback){const state={i:a};while(state.i<end){
+ const tag=varint(b,state),field=Math.floor(tag/8),wire=tag%8;let val,first=state.i,last=state.i;
+ if(wire===0){val=varint(b,state);}
+ else if(wire===2){const len=varint(b,state);first=state.i;last=first+len;if(last>b.length||last>end)throw Error('Invalid MVT length');state.i=last;}
+ else if(wire===1){first=state.i;state.i+=8;last=state.i;}
+ else if(wire===5){first=state.i;state.i+=4;last=state.i;}
+ else throw Error('Unsupported MVT wire type');
+ if(state.i>end)throw Error('MVT overrun');
+ callback(field,wire,val,first,last);
+}}
+function packed(b,a,end){const state={i:a},out=[];while(state.i<end)out.push(varint(b,state));return out;}
+function tilePoints(buf,z,tileX,tileY){
+ const b=new Uint8Array(buf),layers=[];iterate(b,0,b.length,(field,wire,val,a,e)=>{if(field===3&&wire===2)layers.push([a,e]);});
+ const points=[];
+ for(const [a,e] of layers){
+   const keys=[],values=[],features=[];let extent=4096,name='';
+   iterate(b,a,e,(f,w,val,s,t)=>{
+     if(f===1&&w===2)name=decodeText(b,s,t);
+     else if(f===2&&w===2)features.push([s,t]);
+     else if(f===3&&w===2)keys.push(decodeText(b,s,t));
+     else if(f===4&&w===2){
+       let value=null;iterate(b,s,t,(vf,vw,v,vs,ve)=>{
+         if(vf===1&&vw===2)value=decodeText(b,vs,ve);
+         else if(vw===0)value=v;
+         else if(vf===2&&vw===5)value=new DataView(b.buffer,b.byteOffset+vs,4).getFloat32(0,true);
+         else if(vf===3&&vw===1)value=new DataView(b.buffer,b.byteOffset+vs,8).getFloat64(0,true);
+       });values.push(value);
+     }else if(f===5&&w===0)extent=val;
+   });
+   if(name!=='cameras')continue;
+   for(const [start,end] of features){
+     let id=null,type=0,tags=[],geometry=[];
+     iterate(b,start,end,(f,w,val,s,t)=>{
+       if(f===1&&w===0)id=val;else if(f===2&&w===2)tags=packed(b,s,t);
+       else if(f===3&&w===0)type=val;else if(f===4&&w===2)geometry=packed(b,s,t);
+     });
+     if(type!==1||!geometry.length)continue;
+     const props={};for(let i=0;i+1<tags.length;i+=2){if(keys[tags[i]]!==undefined)props[keys[tags[i]]]=values[tags[i+1]];}
+     let x=0,y=0,j=0;
+     while(j<geometry.length){
+       const cmd=geometry[j++],mode=cmd&7,count=cmd>>3;
+       if(mode===1||mode===2){
+         for(let k=0;k<count&&j+1<geometry.length;k++){
+           const dx=geometry[j++],dy=geometry[j++];
+           x+=(dx&1)?-(dx+1)/2:dx/2;y+=(dy&1)?-(dy+1)/2:dy/2;
+           if(mode===1){
+             const n=2**z,lng=(tileX+x/extent)/n*360-180;
+             const lat=Math.atan(Math.sinh(Math.PI*(1-2*(tileY+y/extent)/n)))*180/Math.PI;
+             if(Number.isFinite(lng)&&Number.isFinite(lat))points.push({lat,lng,id:props.osmId||props.osm_id||id,props});
+           }
+         }
+       }else if(mode===7)continue;else break;
+     }
+   }
+ }
+ return points;
+}
+function xy(lon,lat,z){
+ const n=2**z;const clamped=Math.max(-85.05,Math.min(85.05,lat));
+ return [Math.floor((lon+180)/360*n),Math.floor((1-Math.asinh(Math.tan(clamped*Math.PI/180))/Math.PI)/2*n)];
+}
+function resizeCanvas(){
+ const size=map.getSize(),dpr=Math.min(devicePixelRatio||1,2);
+ canvas.style.width=size.x+'px';canvas.style.height=size.y+'px';
+ canvas.width=Math.round(size.x*dpr);canvas.height=Math.round(size.y*dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function renderCameras(){
+ resizeCanvas();const w=map.getSize().x,h=map.getSize().y;ctx.clearRect(0,0,w,h);
+ hitRecords=[];const z=map.getZoom();
+ const radius=z<9?2:z<12?3.4:5.4;
+ for(const r of visibleRecords){
+   const pt=map.latLngToContainerPoint([r.lat,r.lng]);
+   if(pt.x<0||pt.y<0||pt.x>w||pt.y>h)continue;
+   const s=String(r.props.brand||r.props.operator||r.props.manufacturer||'');
+   const c=/flock/i.test(s)?'#6ce1b6':'#efb577';
+   ctx.beginPath();ctx.arc(pt.x,pt.y,radius,0,Math.PI*2);
+   ctx.fillStyle=c;ctx.fill();
+   if(z>=11){ctx.strokeStyle='#0f2932';ctx.lineWidth=1.3;ctx.stroke();}
+   hitRecords.push({p:pt,record:r});
+ }
+}
+function tileBoundsForView(){
+ const z=Math.max(6,Math.min(14,Math.floor(map.getZoom())));
+ if(map.getZoom()<6)return null;
+ const b=map.getBounds(),a=xy(b.getWest(),b.getNorth(),z),c=xy(b.getEast(),b.getSouth(),z);
+ const n=2**z,west=Math.max(0,Math.min(n-1,a[0])),east=Math.max(0,Math.min(n-1,c[0]));
+ const north=Math.max(0,Math.min(n-1,a[1])),south=Math.max(0,Math.min(n-1,c[1]));
+ if((east-west+1)*(south-north+1)>32)return null;
+ const out=[];for(let x=west;x<=east;x++)for(let y=north;y<=south;y++)out.push({z,x,y,key:z+'/'+x+'/'+y});
+ return out;
+}
+async function fetchTile(t){
+ if(cache.has(t.key))return cache.get(t.key);
+ const url='https://tiles.dontgetflocked.com/cameras-us-hourly/'+t.z+'/'+t.x+'/'+t.y+'.mvt';
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),14000);
+ try{
+   const res=await fetch(url,{signal:controller.signal});
+   if(!res.ok)throw Error('Camera tile HTTP '+res.status);
+   const data=tilePoints(await res.arrayBuffer(),t.z,t.x,t.y);
+   cache.set(t.key,data);if(cache.size>130)cache.delete(cache.keys().next().value);
+   return data;
+ }finally{clearTimeout(timer);}
+}
+async function refreshCameraTiles(){
+ const tiles=tileBoundsForView(),id=++requestSerial;
+ if(!tiles){visibleRecords=[];renderCameras();say('camera-status','Zoom toward a state or city to show reported ALPR camera dots. No street-level zoom is required.');return;}
+ if(loadingCamera&&lastView===tiles.map(x=>x.key).join('|'))return;
+ lastView=tiles.map(x=>x.key).join('|');loadingCamera=true;
+ let successes=0,failures=0;
+ const all=[];
+ // Run small groups in parallel to avoid flooding the public tile server.
+ for(let i=0;i<tiles.length;i+=5){
+   const rs=await Promise.allSettled(tiles.slice(i,i+5).map(fetchTile));
+   if(id!==requestSerial)return;
+   for(const r of rs){if(r.status==='fulfilled'){successes++;all.push(...r.value);}else{failures++;}}
+ }
+ if(id!==requestSerial)return;
+ const uniq=new Set();visibleRecords=all.filter(p=>{
+   const k=p.id!=null?String(p.id):p.lng.toFixed(6)+','+p.lat.toFixed(6);
+   if(uniq.has(k))return false;uniq.add(k);return true;
+ }).slice(0,20000);
+ renderCameras();loadingCamera=false;
+ $('map-badge').textContent=failures?'Camera data partial':'Camera data loaded';
+ say('camera-status',failures?
+  successes+' map tile(s) loaded; '+failures+' camera tile(s) failed. Coverage is incomplete, so an empty map is not a camera-free area.':
+  visibleRecords.length+' public camera point(s) in the current map area. Tap a small dot for details. Camera records are not independently verified.',!!failures);
+}
+let debounce=null;
+map.on('move',renderCameras);map.on('zoomend',renderCameras);
+map.on('moveend',()=>{clearTimeout(debounce);debounce=setTimeout(refreshCameraTiles,180);});
+map.on('resize',renderCameras);
+const privateKey='flockfree_private_reports_v02',myReports=[];
+try{const data=JSON.parse(localStorage.getItem(privateKey)||'[]');if(Array.isArray(data))myReports.push(...data.filter(r=>Number.isFinite(r.lat)&&Number.isFinite(r.lon)).slice(-100));}catch(e){}
+function drawPrivate(){
+ privateLayer.clearLayers();
+ myReports.forEach(r=>L.circleMarker([r.lat,r.lon],{radius:7,color:'#fff',weight:2,fillColor:'#91b9ff',fillOpacity:1}).on('click',()=>{
+   $('details').innerHTML='<strong>Private, unverified report</strong><div>'+safe(r.note||'No note')+'</div><small>Stored locally, not shared</small>';
+ }).addTo(privateLayer));
+}
+drawPrivate();
+$('report').onclick=()=>{
+ const p=map.getCenter(),note=prompt('Optional note for private camera report:','');
+ if(note===null)return;
+ myReports.push({lat:p.lat,lon:p.lng,note:note.slice(0,120),mine:true,created:Date.now()});
+ if(myReports.length>100)myReports.shift();
+ try{localStorage.setItem(privateKey,JSON.stringify(myReports));}catch(e){}
+ drawPrivate();say('camera-status','Your unverified report was saved on this device only.');
+};
+map.on('click',event=>{
+ if(pickDestination){
+   pickDestination=false;
+   $('address').value='';
+   navigationLinks();
+   chooseDestination([event.latlng.lng,event.latlng.lat],'Map pin: '+event.latlng.lat.toFixed(5)+', '+event.latlng.lng.toFixed(5),true);
+   return;
+ }
+ const pt=map.latLngToContainerPoint(event.latlng);let near=null,min=Infinity;
+ for(const item of hitRecords){
+   const dist=Math.hypot(item.p.x-pt.x,item.p.y-pt.y);
+   if(dist<min){min=dist;near=item.record;}
+ }
+ if(min>Math.max(15,map.getZoom()<11?11:13)||!near)return;
+ if(map.getZoom()<11){
+   map.setView([near.lat,near.lng],12);
+   say('camera-status','Zoomed in. Tap the camera dot again for its original report details.');
+   return;
+ }
+ const p=near.props||{};
+ const brand=p.brand||p.manufacturer||p.operator||'Not specified',id=p.osmId||p.osm_id||near.id;
+ const content='<strong>Public ALPR record</strong><div>Brand / operator: '+safe(brand)+'</div>'+
+  '<div>Coordinates: '+near.lat.toFixed(5)+', '+near.lng.toFixed(5)+'</div>'+
+  (id?'<div><a target="_blank" rel="noopener noreferrer" href="https://www.openstreetmap.org/node/'+encodeURIComponent(id)+'">View OSM record</a></div>':'')+
+  '<small>Unverified volunteer report; data may be outdated</small>';
+ $('details').innerHTML=content;
+ L.popup().setLatLng([near.lat,near.lng]).setContent(content).openOn(map);
+});
+map.whenReady(()=>{renderCameras();refreshCameraTiles();});
+})();
+</script></body></html>
