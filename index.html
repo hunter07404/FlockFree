@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d171c">
-<title>FlockFree 0.10 | Camera Map and Navigation</title>
+<title>FlockFree 0.11 | Camera Map and Navigation</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 :root{color-scheme:dark;--bg:#0c181e;--panel:#182a32;--ink:#f3faf8;--green:#6ce1b6;--edge:#395963;--muted:#b7cdd0}
@@ -35,12 +35,24 @@ button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-v
 #map-message{font-size:12px;color:#b3d7cc}
 .navlinks{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.navlinks .navlink{flex:1;text-align:center;min-width:145px;display:flex;align-items:center;justify-content:center}
 #steps{max-height:190px;overflow-y:auto;font-size:13px;padding-left:22px;color:#cee4e6}
+#nav-panel{margin:13px 0 0;background:#18392f;border:1px solid #58846e;border-radius:15px;padding:13px}
+#nav-panel[hidden]{display:none}
+#nav-instruction{font-size:20px;line-height:1.25;font-weight:800;margin:9px 0 3px;color:#f3fff8}
+#nav-next{font-size:16px;color:#b0f5d6;font-weight:750}
+#nav-remaining{font-size:12px;color:#b9d5cd;margin-top:7px}
+#nav-status{padding:9px 11px;border:1px solid #537f70;border-radius:9px;background:#142e29;margin:10px 0;font-size:13px}
+#nav-panel .row button{flex:1 1 115px}
+#nav-panel .minor{color:#a9cbbf;font-size:12px}
+#nav-panel .state{font-weight:750;color:#b3f3d5}
+#nav-panel .warn{color:#ffdb9e!important}
+#nav-start[disabled],#nav-stop[disabled]{opacity:.45}
+
 #steps li{padding:4px 0}hr{border:none;border-top:1px solid #46636b;margin:13px 0}
 footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 @media(max-width:570px){.row.search input{flex-basis:100%}.row.search button{flex:1}#map{min-height:335px;height:51vh}}
 </style></head><body><main>
-<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.10</span></header>
-<p class="help">Reliable street map • Auto-loading camera dots • Address lookup and real navigation links</p>
+<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.11</span></header>
+<p class="help">Reliable camera map • Verified addresses • Live GPS guidance preview</p>
 <section>
 <div class="row between"><h2>Camera map</h2><span class="pill" id="map-badge">Map starting…</span></div>
 <div id="map" role="application" aria-label="Interactive map with public camera records"></div>
@@ -71,11 +83,26 @@ footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 <div class="row" style="margin-top:9px"><button id="preview" type="button" class="primary" disabled>Preview route in FlockFree</button></div>
 <div id="route-status" role="status">Select a destination and starting point to preview alternative driving routes.</div>
 <div id="routes"></div><ol id="steps"></ol>
-<p class="help">Route preview uses the public OSRM demonstration server (not live traffic). FlockFree does not yet support verified camera-avoidance directions, production GPS guidance, or automatic rerouting. Use Apple Maps or Google Maps for actual turn-by-turn driving.</p>
+<div id="nav-panel" hidden aria-label="Built-in GPS navigation testing panel">
+  <div class="row between"><strong>Live GPS guidance — Beta</strong><span class="pill" id="nav-state">Ready</span></div>
+  <div id="nav-instruction">Route selected</div>
+  <div id="nav-next">Start when you are ready</div>
+  <div id="nav-remaining">Estimated journey information will appear here.</div>
+  <div class="row action" style="margin-top:12px">
+    <button class="primary" id="nav-start" type="button">Start GPS guidance</button>
+    <button id="nav-stop" type="button" disabled>Stop guidance</button>
+    <button id="nav-voice" type="button" aria-pressed="true">Voice: On</button>
+    <button id="nav-follow" type="button" aria-pressed="true">Follow map: On</button>
+  </div>
+  <div id="nav-status" role="status" aria-live="polite">GPS guidance is experimental. Keep the page open and unlocked.</div>
+  <p class="minor">For testing only while parked or as a passenger. Directions and rerouting require mobile data. No live traffic, guaranteed voice playback in the background, camera-free routes, or reliable lock-screen navigation. Use Apple Maps or Google Maps for driving.</p>
+</div>
+
+<p class="help">Route preview and experimental GPS guidance use the public OSRM demonstration server (not live traffic). Camera-avoidance routing is not available. Built-in GPS guidance works only while the browser remains active; use Apple Maps or Google Maps for dependable turn-by-turn driving.</p>
 </section>
 <section><h2>Camera information</h2><div id="details">Tap a small camera marker to inspect a public record. At wider zoom levels, a tap may zoom in to provide details.</div></section>
-<section><h2>Privacy</h2><p class="help">Geolocation stays in this browser session. Streets, camera tiles, address searches, and routing use external services. Personal camera reports are saved only in this browser. FlockFree does not store a trip history.</p></section>
-<footer>FlockFree v0.10 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
+<section><h2>Privacy</h2><p class="help">Geolocation stays in this browser session. Streets, camera tiles, address searches, and routing use external services. Personal camera reports are saved only in this browser. FlockFree does not store a trip history. When GPS guidance is active, coordinates may be sent to the OSRM demonstration routing service for recalculation.</p></section>
+<footer>FlockFree v0.11 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -123,6 +150,7 @@ function navigationLinks(){
  $('google').href=target?'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(target)+'&travelmode=driving':'https://www.google.com/maps/';
 }
 $('address').oninput=()=>{
+ stopNavigation('Destination changed. GPS guidance stopped.');
  manualPin=false;destination=null;destinationName='';$('preview').disabled=true;plans=[];routesLayer.clearLayers();
  $('address-results').innerHTML='';$('routes').innerHTML='';$('steps').innerHTML='';
  $('address-fallback').hidden=true;
@@ -133,6 +161,7 @@ $('address').oninput=()=>{
 navigationLinks();
 function chooseDestination(p,label,chosenManually=false){
  if(!lngLatValid(p))return;
+ stopNavigation('Destination changed. GPS guidance stopped.');
  manualPin=chosenManually;destination=p;destinationName=label;
  if(destinationMarker)map.removeLayer(destinationMarker);
  destinationMarker=positionPin(p,'#f1b36e','Selected destination: '+safe(label));
@@ -419,7 +448,8 @@ function turnText(step){const m=step.maneuver||{},t=m.type||'',dir=m.modifier||'
  if(t==='fork')return 'Keep '+dir+road;
  return t.replace(/^\w/,c=>c.toUpperCase())+road;
 }
-function displayRoute(i){
+function displayRoute(i,keepNavigation=false){
+ if(navActive&&!keepNavigation)stopNavigation('Route changed. GPS guidance stopped; restart when ready.');
  chosenRoute=i;routesLayer.clearLayers();
  for(let j=0;j<plans.length;j++){
    const latlngs=plans[j].geometry.coordinates.map(p=>[p[1],p[0]]);
@@ -428,9 +458,11 @@ function displayRoute(i){
  $('routes').querySelectorAll('[data-route]').forEach(b=>b.classList.toggle('active',Number(b.dataset.route)===i));
  const steps=plans[i].legs.flatMap(l=>l.steps||[]);
  $('steps').innerHTML=steps.map(s=>'<li>'+safe(turnText(s))+' <small class="help">('+metres(s.distance||0)+')</small></li>').join('');
- say('route-status','Route '+(i+1)+' highlighted. For live GPS directions, tap Apple Maps or Google Maps above.');
+ say('route-status','Route '+(i+1)+' highlighted. Use Start GPS guidance for foreground testing, or open Apple Maps / Google Maps for driving.');
+ navSetRoute();
 }
 $('preview').onclick=async()=>{
+ stopNavigation('New route preview requested; GPS guidance stopped.');
  if(!origin||!destination){say('route-status','Choose a starting point and confirm a destination first.',true);return;}
  $('preview').disabled=true;say('route-status','Calculating routes…');
  try{
@@ -447,6 +479,230 @@ $('preview').onclick=async()=>{
  }catch(e){say('route-status','FlockFree route preview unavailable. Use Apple Maps or Google Maps above for directions.',true);}
  finally{$('preview').disabled=!destination||!origin;}
 };
+
+// === FlockFree 0.11: Foreground GPS navigation prototype ===
+// Uses route geometry and OSRM maneuver locations. Location is not persisted.
+let navWatchId=null,navActive=false,navFollow=true,navVoice=true;
+let navLastGPS=null,navRouteMeta=null,navStepIndex=1;
+let navOffRouteCount=0,navRerouting=false,navRouteGeneration=0,navLastReroute=0,navLastSpeechAt=0;
+let navSpeechStages=new Set(),navAccuracyCircle=null;
+function navSay(message,warning=false){say('nav-status',message,warning);}
+function navState(state){$('nav-state').textContent=state;}
+function navMeters(n){return n>=1609.344?(n/1609.344).toFixed(1)+' mi':Math.max(0,Math.round(n*3.28084/10)*10)+' ft';}
+function navEta(seconds){const m=Math.max(1,Math.round(seconds/60));return m>=60?Math.floor(m/60)+' hr '+(m%60)+' min':m+' min';}
+function navSpeak(text){
+ if(!navVoice || !('speechSynthesis' in window))return;
+ try{
+  const synth=window.speechSynthesis;
+  synth.cancel();const u=new SpeechSynthesisUtterance(text);
+  u.rate=.98;u.volume=1;u.lang='en-US';synth.speak(u);
+  navLastSpeechAt=Date.now();
+ }catch(error){navSay('Voice is unavailable in this browser. On-screen directions still work.',true);}
+}
+function navStopVoice(){if('speechSynthesis' in window){try{speechSynthesis.cancel();}catch(e){}}}
+function navDistance(a,b){
+ const r=6371000,dx=(b[0]-a[0])*Math.PI/180,dy=(b[1]-a[1])*Math.PI/180;
+ const lat1=a[1]*Math.PI/180,lat2=b[1]*Math.PI/180;
+ const h=Math.sin(dy/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dx/2)**2;
+ return 2*r*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
+}
+function navBuildGeometry(route){
+ const coords=route.geometry?.coordinates;
+ if(!Array.isArray(coords)||coords.length<2)return null;
+ const base=coords[0],scaleX=111320*Math.cos(base[1]*Math.PI/180),scaleY=111320;
+ const points=coords.map(p=>({x:(p[0]-base[0])*scaleX,y:(p[1]-base[1])*scaleY}));
+ let total=0;const segs=[];
+ for(let i=1;i<points.length;i++){
+  const a=points[i-1],b=points[i],dx=b.x-a.x,dy=b.y-a.y;
+  const length=Math.hypot(dx,dy);if(length<.01)continue;
+  segs.push({a,b,dx,dy,len:length,start:total});total+=length;
+ }
+ if(!segs.length)return null;
+ const project=(ll)=>{
+  const x=(ll[0]-base[0])*scaleX,y=(ll[1]-base[1])*scaleY;
+  let best={distance:Infinity,progress:0};
+  for(const seg of segs){
+   const t=Math.max(0,Math.min(1,((x-seg.a.x)*seg.dx+(y-seg.a.y)*seg.dy)/(seg.len*seg.len)));
+   const gap=Math.hypot(x-(seg.a.x+seg.dx*t),y-(seg.a.y+seg.dy*t));
+   if(gap<best.distance)best={distance:gap,progress:seg.start+seg.len*t};
+  }
+  return best;
+ };
+ const steps=route.legs.flatMap(l=>l.steps||[]).filter(s=>Array.isArray(s.maneuver?.location));
+ const turnPoints=steps.map(s=>({step:s,at:project(s.maneuver.location).progress}));
+ return {project,steps:turnPoints,total,routeDistance:route.distance,routeDuration:route.duration};
+}
+function navSetRoute(){
+ const route=plans[chosenRoute];
+ navRouteMeta=route?navBuildGeometry(route):null;
+ navStepIndex=1;navOffRouteCount=0;navSpeechStages=new Set();
+ if(!navRouteMeta){$('nav-panel').hidden=true;return;}
+ $('nav-panel').hidden=false;
+ const upcoming=navRouteMeta.steps[Math.min(1,navRouteMeta.steps.length-1)];
+ $('nav-instruction').textContent=upcoming?turnText(upcoming.step):'Route selected';
+ $('nav-next').textContent='Tap Start GPS guidance when ready';
+ $('nav-remaining').textContent=navMeters(route.distance)+' total · '+navEta(route.duration)+' estimated · no live traffic';
+ if(!navActive){navState('Ready');navSay('GPS guidance is available for foreground testing. Do not rely on it while driving.');}
+}
+function stopNavigation(reason='GPS guidance stopped.'){
+ navRouteGeneration++;
+ if(navWatchId!==null){
+  navigator.geolocation.clearWatch(navWatchId);navWatchId=null;
+ }
+ navActive=false;navRerouting=false;navOffRouteCount=0;
+ navStopVoice();
+ $('nav-start').disabled=false;$('nav-stop').disabled=true;
+ if(navAccuracyCircle){map.removeLayer(navAccuracyCircle);navAccuracyCircle=null;}
+ navState('Stopped');
+ navSay(reason);
+}
+function navUpdateLocation(ll,accuracy){
+ if(locationMarker){locationMarker.setLatLng([ll[1],ll[0]]);}else locationMarker=positionPin(ll,'#4b91ff','Live GPS position');
+ if(navAccuracyCircle){navAccuracyCircle.setLatLng([ll[1],ll[0]]).setRadius(accuracy);}
+ else navAccuracyCircle=L.circle([ll[1],ll[0]],{radius:accuracy,color:'#6f9fd4',weight:1,fillOpacity:.07,interactive:false}).addTo(map);
+ if(navFollow){map.setView([ll[1],ll[0]],Math.max(15,map.getZoom()),{animate:false});}
+}
+function navDisplayCurrent(progress){
+ if(!navRouteMeta)return;
+ const turns=navRouteMeta.steps;
+ if(!turns.length){navSay('The route has no turn-by-turn maneuvers available.',true);return;}
+ let i=Math.min(Math.max(1,navStepIndex),turns.length-1);
+ while(i<turns.length-1&&turns[i].at<progress-25)i++;
+ navStepIndex=i;
+ const step=turns[i].step,remainingToTurn=Math.max(0,turns[i].at-progress);
+ const remainingRoute=Math.max(0,navRouteMeta.total-progress);
+ const fraction=navRouteMeta.total?remainingRoute/navRouteMeta.total:1;
+ const eta=navRouteMeta.routeDuration*fraction;
+ $('nav-instruction').textContent=turnText(step);
+ $('nav-next').textContent=step.maneuver?.type==='arrive'?'Destination '+navMeters(remainingToTurn)+' ahead':'Next maneuver in '+navMeters(remainingToTurn);
+ $('nav-remaining').textContent='About '+navMeters(navRouteMeta.routeDistance*fraction)+' remaining · '+navEta(eta)+' estimated · no live traffic';
+ const text=turnText(step),key='step'+i,now=Date.now();
+ let stage='';
+ if(remainingToTurn<45)stage='now';
+ else if(remainingToTurn<180)stage='near';
+ else if(remainingToTurn<600)stage='mid';
+ else stage='far';
+ const stageKey=key+':'+stage;
+ if(!navSpeechStages.has(stageKey)&&now-navLastSpeechAt>5500){
+  const prompt=stage==='now'?'Now, '+text:stage==='far'?text:'In '+navMeters(remainingToTurn)+', '+text;
+  navSpeak(prompt);navSpeechStages.add(stageKey);
+ }
+}
+async function navRecalculate(ll,generation){
+ if(navRerouting||!destination)return;
+ navRerouting=true;navLastReroute=Date.now();
+ navState('Rerouting');navSay('Away from the planned route. Calculating an updated route…');
+ try{
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),18000);
+  let response;
+  try{
+   const url='https://router.project-osrm.org/route/v1/driving/'+ll.join(',')+';'+destination.join(',')+
+     '?overview=full&geometries=geojson&steps=true&alternatives=false';
+   response=await fetch(url,{signal:c.signal});
+  }finally{clearTimeout(t);}
+  if(!response.ok)throw Error('Rerouting service unavailable');
+  const data=await response.json();
+  if(data.code!=='Ok'||!Array.isArray(data.routes)||!data.routes.length)throw Error('No route returned');
+  if(!navActive||generation!==navRouteGeneration)return;
+  const route=data.routes[0];
+  if(!route.geometry?.coordinates||!route.legs?.length)throw Error('Incomplete reroute');
+  plans=[route];chosenRoute=0;displayRoute(0,true);
+  navOffRouteCount=0;navRerouting=false;
+  navState('GPS active');navSay('Updated route calculated. Follow on-screen guidance; confirm against road signs.');
+  navSpeak('Route updated');
+ }catch(error){
+  if(navActive&&generation===navRouteGeneration){
+   navState('Rerouting unavailable');
+   navSay('Off route, but the public routing service did not respond. Follow road signs or use Apple Maps / Google Maps. Trying again later.',true);
+  }
+ }finally{navRerouting=false;}
+}
+function navOnFix(position){
+ if(!navActive)return;
+ const ll=[position.coords.longitude,position.coords.latitude],accuracy=Number(position.coords.accuracy);
+ if(!lngLatValid(ll))return;
+ const currentAccuracy=Number.isFinite(accuracy)?Math.max(5,accuracy):150;
+ navLastGPS=ll;navUpdateLocation(ll,currentAccuracy);
+ if(currentAccuracy>100){
+  navState('Weak GPS');
+  navSay('GPS accuracy is '+Math.round(currentAccuracy)+' m. Waiting for a clearer signal before giving turn prompts.',true);
+  return;
+ }
+ if(!navRouteMeta){navState('No route');return;}
+ const point=navRouteMeta.project(ll);
+ // Require three usable location fixes substantially away from the route.
+ // GPS drift and a single bad fix must not trigger a reroute.
+ const limit=Math.max(75,2*currentAccuracy);
+ if(point.distance>limit){
+  navOffRouteCount++;
+  if(navOffRouteCount>=3&&!navRerouting&&Date.now()-navLastReroute>45000){
+   navRecalculate(ll,navRouteGeneration);
+  }else if(!navRerouting){
+   navState('Check route');navSay('GPS appears '+Math.round(point.distance)+' m from the route. Waiting to confirm before recalculating.');
+  }
+  return;
+ }
+ navOffRouteCount=0;
+ if(!navRerouting){
+  navState('GPS active');
+  navSay('GPS tracking active · accuracy '+Math.round(currentAccuracy)+' m · Safari must stay open.');
+  navDisplayCurrent(point.progress);
+ }
+ if(destination&&navDistance(ll,destination)<35&&currentAccuracy<40){
+  navSpeak('You are near your destination');
+  stopNavigation('Near your destination. Check the entrance and safely stop guidance.');navState('Arrived nearby');
+ }
+}
+$('nav-start').onclick=()=>{
+ if(navActive)return;
+ if(!navigator.geolocation){navSay('GPS is unavailable in this browser. Use Apple Maps for navigation.',true);return;}
+ if(!destination||!plans.length||!navRouteMeta){navSay('Calculate and select a driving route before starting GPS guidance.',true);return;}
+ navActive=true;navOffRouteCount=0;navLastReroute=0;navLastSpeechAt=0;navSpeechStages=new Set();
+ navRouteGeneration++;
+ const generation=navRouteGeneration;
+ $('nav-start').disabled=true;$('nav-stop').disabled=false;
+ navState('Acquiring GPS');
+ navSay('Requesting live GPS. Keep Safari visible and your phone unlocked while testing.');
+ navSpeak('FlockFree GPS guidance started. Keep this page visible.');
+ try{
+  navWatchId=navigator.geolocation.watchPosition(
+   p=>{if(navActive&&generation===navRouteGeneration)navOnFix(p);},
+   err=>{
+    if(!navActive||generation!==navRouteGeneration)return;
+    if(err.code===1)stopNavigation('Location permission denied. Check Safari location settings.');
+    else{navState('GPS interrupted');navSay('GPS updates interrupted. Check location access and signal; do not rely on guidance until updates return.',true);}
+   },{enableHighAccuracy:true,maximumAge:2000,timeout:20000}
+  );
+ }catch(error){stopNavigation('Unable to start GPS tracking. Use Apple Maps instead.');}
+};
+$('nav-stop').onclick=()=>stopNavigation();
+$('nav-voice').onclick=()=>{
+ navVoice=!navVoice;
+ $('nav-voice').textContent='Voice: '+(navVoice?'On':'Off');
+ $('nav-voice').setAttribute('aria-pressed',String(navVoice));
+ if(!navVoice)navStopVoice();
+ else if(navActive)navSpeak('Voice guidance enabled');
+};
+$('nav-follow').onclick=()=>{
+ navFollow=!navFollow;
+ $('nav-follow').textContent='Follow map: '+(navFollow?'On':'Off');
+ $('nav-follow').setAttribute('aria-pressed',String(navFollow));
+ if(navFollow&&navLastGPS)map.setView([navLastGPS[1],navLastGPS[0]],Math.max(15,map.getZoom()));
+};
+map.on('dragstart',()=>{
+ if(navActive&&navFollow){
+  navFollow=false;$('nav-follow').textContent='Follow map: Off';$('nav-follow').setAttribute('aria-pressed','false');
+ }
+});
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden&&navActive)navSay('Safari is no longer in the foreground. GPS and voice may stop until you return. Use a dedicated navigation app for driving.',true);
+ if(!document.hidden&&navActive)navSay('Safari is visible. GPS guidance remains experimental; wait for a fresh location fix.');
+});
+window.addEventListener('pagehide',()=>{
+ if(navWatchId!==null)navigator.geolocation.clearWatch(navWatchId);
+ navStopVoice();
+});
+
 // Tile decoding for MVT point geometry. Unlike vector tile canvas scaling,
 // fixed-size circles are redrawn in screen pixels even at high map zoom.
 const canvas=document.createElement('canvas');canvas.id='cameraCanvas';$('map').appendChild(canvas);
