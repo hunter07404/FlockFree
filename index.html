@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d171c">
-<title>FlockFree 0.11 | Camera Map and Navigation</title>
+<title>FlockFree 0.12 | Camera Map and Navigation</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 :root{color-scheme:dark;--bg:#0c181e;--panel:#182a32;--ink:#f3faf8;--green:#6ce1b6;--edge:#395963;--muted:#b7cdd0}
@@ -47,18 +47,45 @@ button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-v
 #nav-panel .warn{color:#ffdb9e!important}
 #nav-start[disabled],#nav-stop[disabled]{opacity:.45}
 
+#camera-alerts{background:#193630;border:1px solid #517d71;border-radius:13px;padding:12px;margin:10px 0 0}
+#camera-alerts select{background:#0f2129;border:1px solid #71998e;border-radius:10px;padding:9px;color:white;font:inherit;min-height:43px;flex:1 1 120px}
+#camera-alerts .row.action button{flex:1 1 150px}
+#camera-alert-status{background:#0c2928;border:1px solid #507c70;border-radius:10px;padding:10px;margin-top:9px;font-size:13px;line-height:1.5;white-space:pre-line}
+#camera-alert-status.warn{border-color:#a27b4e;color:#ffd5a1}
+#camera-alert-distance{font-size:13px;font-weight:700}
+#camera-sim-result{font-size:13px;padding-top:7px;white-space:pre-line;color:#bcdece}
+
+
 #steps li{padding:4px 0}hr{border:none;border-top:1px solid #46636b;margin:13px 0}
 footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 @media(max-width:570px){.row.search input{flex-basis:100%}.row.search button{flex:1}#map{min-height:335px;height:51vh}}
 </style></head><body><main>
-<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.11</span></header>
-<p class="help">Reliable camera map • Verified addresses • Live GPS guidance preview</p>
+<header><h1>⬡ Flock<span>Free</span></h1><span class="pill">BETA 0.12</span></header>
+<p class="help">Camera map • Live GPS guidance • Camera proximity alerts</p>
 <section>
 <div class="row between"><h2>Camera map</h2><span class="pill" id="map-badge">Map starting…</span></div>
 <div id="map" role="application" aria-label="Interactive map with public camera records"></div>
 <div class="legend"><span><i class="dot" style="background:#6ce1b6"></i>Flock-tagged</span><span><i class="dot" style="background:#efb577"></i>Other / unspecified ALPR</span><span><i class="dot" style="background:#91b9ff"></i>Private reports</span></div>
 <div class="row action"><button class="primary" id="locate">My location</button><button id="pin-destination">Select destination on map</button><button id="report">Report a camera</button></div>
 <div id="camera-status" role="status" aria-live="polite">Loading street map. Public camera points will load automatically when available.</div>
+<div id="camera-alerts">
+ <div class="row between"><h2>Camera proximity alerts</h2><span class="pill" id="camera-alert-badge">GPS not active</span></div>
+ <div class="row">
+  <label for="camera-distance" id="camera-alert-distance">Warning distance</label>
+  <select id="camera-distance" aria-label="Camera alert distance">
+   <option value="300">300 feet</option>
+   <option value="600" selected>600 feet</option>
+   <option value="1000">1,000 feet</option>
+  </select>
+ </div>
+ <div class="row action" style="margin-top:9px">
+  <button id="camera-alert-toggle" type="button" class="primary" aria-pressed="true">Camera alerts: On</button>
+  <button id="camera-alert-sim" type="button">Run stationary alert test</button>
+ </div>
+ <div id="camera-alert-status" role="status" aria-live="polite">Camera alerts will start when you tap Start GPS guidance. No location is monitored until navigation starts.</div>
+ <div id="camera-sim-result" role="status" aria-live="polite"></div>
+ <p class="help">Uses nearby <strong>public, unverified ALPR records</strong> only. Voice warnings follow the navigation Voice setting. A reported camera may be on a different street, or missing or mislocated. This feature cannot confirm an area is camera-free. Safari must stay open for alerts.</p>
+</div>
 <p class="help">The camera layer is separate from the map and search. Public ALPR reports are sourced from <a href="https://github.com/flockhopper3/deflock-data" target="_blank" rel="noopener noreferrer">FlockHopper's OpenStreetMap-derived camera tiles</a>. Reports can be incorrect, incomplete, or outdated. An empty area never means no cameras.</p>
 </section>
 <section>
@@ -102,7 +129,7 @@ footer{text-align:center;color:#95b0b8;font-size:12px;margin-top:22px}
 </section>
 <section><h2>Camera information</h2><div id="details">Tap a small camera marker to inspect a public record. At wider zoom levels, a tap may zoom in to provide details.</div></section>
 <section><h2>Privacy</h2><p class="help">Geolocation stays in this browser session. Streets, camera tiles, address searches, and routing use external services. Personal camera reports are saved only in this browser. FlockFree does not store a trip history. When GPS guidance is active, coordinates may be sent to the OSRM demonstration routing service for recalculation.</p></section>
-<footer>FlockFree v0.11 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
+<footer>FlockFree v0.12 • Street and surveillance mapping © OpenStreetMap contributors • Experimental</footer>
 </main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
@@ -545,6 +572,7 @@ function navSetRoute(){
  if(!navActive){navState('Ready');navSay('GPS guidance is available for foreground testing. Do not rely on it while driving.');}
 }
 function stopNavigation(reason='GPS guidance stopped.'){
+ cameraStop();
  navRouteGeneration++;
  if(navWatchId!==null){
   navigator.geolocation.clearWatch(navWatchId);navWatchId=null;
@@ -625,7 +653,8 @@ function navOnFix(position){
  const ll=[position.coords.longitude,position.coords.latitude],accuracy=Number(position.coords.accuracy);
  if(!lngLatValid(ll))return;
  const currentAccuracy=Number.isFinite(accuracy)?Math.max(5,accuracy):150;
- navLastGPS=ll;navUpdateLocation(ll,currentAccuracy);
+ navLastGPS={ll,accuracy:currentAccuracy};navUpdateLocation(ll,currentAccuracy);
+ cameraOnGPS(ll,currentAccuracy);
  if(currentAccuracy>100){
   navState('Weak GPS');
   navSay('GPS accuracy is '+Math.round(currentAccuracy)+' m. Waiting for a clearer signal before giving turn prompts.',true);
@@ -660,6 +689,8 @@ $('nav-start').onclick=()=>{
  if(!navigator.geolocation){navSay('GPS is unavailable in this browser. Use Apple Maps for navigation.',true);return;}
  if(!destination||!plans.length||!navRouteMeta){navSay('Calculate and select a driving route before starting GPS guidance.',true);return;}
  navActive=true;navOffRouteCount=0;navLastReroute=0;navLastSpeechAt=0;navSpeechStages=new Set();
+ cameraBadge(cameraAlertsOn?'Waiting for GPS':'Alerts off');
+ cameraStatus(cameraAlertsOn?'Waiting for a GPS fix to load nearby public camera records.':'Camera proximity alerts are switched off.');
  navRouteGeneration++;
  const generation=navRouteGeneration;
  $('nav-start').disabled=true;$('nav-stop').disabled=false;
@@ -689,7 +720,7 @@ $('nav-follow').onclick=()=>{
  navFollow=!navFollow;
  $('nav-follow').textContent='Follow map: '+(navFollow?'On':'Off');
  $('nav-follow').setAttribute('aria-pressed',String(navFollow));
- if(navFollow&&navLastGPS)map.setView([navLastGPS[1],navLastGPS[0]],Math.max(15,map.getZoom()));
+ if(navFollow&&navLastGPS)map.setView([navLastGPS.ll[1],navLastGPS.ll[0]],Math.max(15,map.getZoom()));
 };
 map.on('dragstart',()=>{
  if(navActive&&navFollow){
@@ -704,6 +735,175 @@ window.addEventListener('pagehide',()=>{
  if(navWatchId!==null)navigator.geolocation.clearWatch(navWatchId);
  navStopVoice();
 });
+
+
+// === FlockFree 0.12: public ALPR camera proximity alerts ===
+// Uses the same MVT tile decoder and GPS watcher as the map and navigation.
+// Scans only a local neighborhood; no coordinates or alert history are stored.
+let cameraAlertsOn=true;
+let cameraAlertFeet=600;
+const cameraWarned=new Map();
+let cameraAlertLastSpoken=0,cameraLocalRecords=[],cameraLocalTileKey='',cameraLocalAt=0;
+let cameraLocalPartial=false,cameraLocalLoading=false,cameraLocalReq=0,cameraLastStatus=0;
+function cameraBadge(message){$('camera-alert-badge').textContent=message;}
+function cameraStatus(message,warning=false){
+ say('camera-alert-status',message,warning);
+ cameraLastStatus=Date.now();
+}
+function cameraKey(record){
+ const id=record.id??record.props?.osmId??record.props?.osm_id;
+ return id!=null?'osm:'+String(id):'geo:'+record.lat.toFixed(5)+','+record.lng.toFixed(5);
+}
+// Pure candidate test: distances use geodesic meters, not map screen pixels.
+function cameraScan(ll,accuracy,records,now,seen,feet=600){
+ const radius=feet*0.3048,accuracyLimit=Math.min(60,radius/2);
+ if(!lngLatValid(ll)||!Number.isFinite(accuracy)||accuracy>accuracyLimit)return {valid:false,reason:'GPS too imprecise'};
+ const nearby=[],unique=new Set();
+ for(const record of records){
+  if(!Number.isFinite(record?.lat)||!Number.isFinite(record?.lng))continue;
+  const key=cameraKey(record);if(unique.has(key))continue;unique.add(key);
+  const meters=navDistance(ll,[record.lng,record.lat]);
+  if(meters<=radius)nearby.push({key,meters,record});
+ }
+ nearby.sort((a,b)=>a.meters-b.meters);
+ // Guard against unbounded session memory.
+ for(const [key,at] of seen){if(now-at>3600000)seen.delete(key);}
+ const fresh=nearby.filter(x=>!seen.has(x.key)||now-seen.get(x.key)>1800000);
+ return {valid:true,nearby,fresh,nearest:nearby[0]||null};
+}
+function cameraEvaluate(ll,accuracy,now=Date.now()){
+ if(!navActive||!cameraAlertsOn||document.hidden)return;
+ if(!cameraLocalRecords.length){
+  if(now-cameraLastStatus>18000)cameraStatus(cameraLocalPartial?
+   'Camera records are incomplete in this area. No proximity warning can be guaranteed.':
+   'Camera records are loading or not reported nearby. An empty result does not mean no cameras.',cameraLocalPartial);
+  return;
+ }
+ const found=cameraScan(ll,accuracy,cameraLocalRecords,now,cameraWarned,cameraAlertFeet);
+ if(!found.valid){
+  if(now-cameraLastStatus>9000)cameraStatus('GPS accuracy is insufficient for '+cameraAlertFeet+'-foot camera warnings. Waiting for a more precise reading.',true);
+  return;
+ }
+ if(!found.fresh.length){
+  if(now-cameraLastStatus>18000)cameraStatus(
+   found.nearby.length?'Already warned about '+found.nearby.length+' nearby record(s); repeat warnings suppressed.':
+   'Camera monitoring active. No new proximity alert from currently loaded reports. Coverage may be incomplete.');
+  return;
+ }
+ for(const item of found.fresh)cameraWarned.set(item.key,now);
+ if(now-cameraAlertLastSpoken<20000){
+  cameraStatus('Additional nearby public camera record(s) detected. Grouped with the recent warning to prevent repeated announcements.');
+  return;
+ }
+ cameraAlertLastSpoken=now;
+ const count=found.fresh.length;
+ const distanceFt=Math.round(found.fresh[0].meters/10*3.28084)*10;
+ const message=count>1?
+  count+' reported license plate reader locations within '+cameraAlertFeet+' feet.':
+  'Reported license plate reader about '+Math.max(10,distanceFt)+' feet from your position.';
+ cameraBadge('Camera nearby');
+ cameraStatus('CAMERA ALERT: '+message+' Public, unverified report; direction of travel is not confirmed.',true);
+ // A single camera announcement takes precedence over that GPS tick's turn instruction.
+ if(navVoice)navSpeak(message);
+}
+function cameraNeighborTiles(ll){
+ const z=14,n=2**z,xyCoord=xy(ll[0],ll[1],z),tiles=[];
+ for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+  const x=xyCoord[0]+dx,y=xyCoord[1]+dy;
+  if(x>=0&&x<n&&y>=0&&y<n)tiles.push({z,x,y,key:z+'/'+x+'/'+y});
+ }
+ return {tiles,center:xyCoord.join(':')};
+}
+async function cameraLoadNearGPS(ll,force=false){
+ if(!navActive||!cameraAlertsOn)return;
+ const region=cameraNeighborTiles(ll),now=Date.now();
+ if(cameraLocalLoading)return;
+ if(!force&&region.center===cameraLocalTileKey&&now-cameraLocalAt<120000)return;
+ const id=++cameraLocalReq;
+ cameraLocalLoading=true;cameraLocalTileKey=region.center;cameraLocalAt=now;
+ cameraBadge('Loading nearby');
+ try{
+  const all=[];let failed=0;
+  for(let j=0;j<region.tiles.length;j+=4){
+   const group=await Promise.allSettled(region.tiles.slice(j,j+4).map(fetchTile));
+   if(id!==cameraLocalReq||!navActive)return;
+   for(const item of group){if(item.status==='fulfilled')all.push(...item.value);else failed++;}
+  }
+  if(id!==cameraLocalReq||!navActive)return;
+  const unique=new Set();
+  cameraLocalRecords=all.filter(p=>{
+   if(!Number.isFinite(p.lat)||!Number.isFinite(p.lng))return false;
+   const key=cameraKey(p);if(unique.has(key))return false;unique.add(key);return true;
+  });
+  cameraLocalPartial=failed>0;
+  cameraBadge(failed?'Data partial':'Monitoring');
+  cameraStatus(failed?
+   'Some public camera tiles failed to load ('+failed+'/9). Alerts can miss reported cameras.':
+   'Loaded '+cameraLocalRecords.length+' local public camera records. Monitoring for proximity; missing reports are possible.',failed>0);
+  if(navLastGPS)cameraEvaluate(navLastGPS.ll,navLastGPS.accuracy);
+ }catch(e){
+  if(id===cameraLocalReq&&navActive){
+   cameraLocalPartial=true;cameraBadge('Data unavailable');
+   cameraStatus('Camera data could not be loaded. Proximity alerts are not reliable right now.',true);
+  }
+ }finally{
+  if(id===cameraLocalReq)cameraLocalLoading=false;
+ }
+}
+function cameraOnGPS(ll,accuracy){
+ if(!navActive||!cameraAlertsOn)return;
+ if(!Number.isFinite(accuracy)||accuracy>100){
+  if(Date.now()-cameraLastStatus>9000)cameraStatus('GPS signal is too imprecise. Camera alerts are paused until location accuracy improves.',true);
+  return;
+ }
+ // The map may have been panned away; always query tiles around GPS, not around the viewport.
+ cameraLoadNearGPS(ll);
+ cameraEvaluate(ll,accuracy);
+}
+function cameraStop(){
+ ++cameraLocalReq;cameraLocalLoading=false;cameraLocalTileKey='';
+ cameraLocalRecords=[];cameraLocalPartial=false;cameraLocalAt=0;
+ cameraBadge('GPS not active');
+ cameraStatus('GPS guidance stopped. Camera alerts are paused.');
+}
+$('camera-alert-toggle').onclick=()=>{
+ cameraAlertsOn=!cameraAlertsOn;
+ $('camera-alert-toggle').textContent='Camera alerts: '+(cameraAlertsOn?'On':'Off');
+ $('camera-alert-toggle').setAttribute('aria-pressed',String(cameraAlertsOn));
+ $('camera-alert-toggle').classList.toggle('primary',cameraAlertsOn);
+ if(!cameraAlertsOn){
+  ++cameraLocalReq;cameraLocalRecords=[];cameraLocalLoading=false;cameraLocalTileKey='';
+  cameraBadge('Alerts off');
+  cameraStatus('Camera proximity warnings are switched off.');
+ }else{
+  cameraBadge(navActive?'Loading nearby':'GPS not active');
+  cameraStatus(navActive?'Loading nearby public records for your GPS position.':'Alerts are on. Start GPS guidance to monitor for nearby public records.');
+  if(navActive&&navLastGPS)cameraLoadNearGPS(navLastGPS.ll,true);
+ }
+};
+$('camera-distance').onchange=()=>{
+ cameraAlertFeet=Number($('camera-distance').value);
+ cameraStatus('Warning range set to '+cameraAlertFeet+' feet. Already-announced records remain suppressed for 30 minutes.');
+ if(navActive&&navLastGPS)cameraEvaluate(navLastGPS.ll,navLastGPS.accuracy);
+};
+// Deterministic simulation: no live GPS, camera tiles, routing, or saved reports.
+$('camera-alert-sim').onclick=()=>{
+ const base=[-82.3238,28.8353],camera={lat:base[1],lng:base[0],id:'test-camera-001',props:{brand:'Synthetic test only'}};
+ const seen=new Map(),now=Date.now(),radius=cameraAlertFeet*.3048;
+ const far=[base[0]+radius/100000*2,base[1]+radius/110000*2];
+ const near=[base[0]+0.00012,base[1]];
+ const farResult=cameraScan(far,10,[camera],now,seen,cameraAlertFeet);
+ const first=cameraScan(near,10,[camera],now+1000,seen,cameraAlertFeet);
+ if(first.fresh.length)for(const x of first.fresh)seen.set(x.key,now+1000);
+ const repeated=cameraScan(near,10,[camera],now+5000,seen,cameraAlertFeet);
+ const lowAccuracy=cameraScan(near,150,[camera],now+6000,seen,cameraAlertFeet);
+ const pass=farResult.valid&&farResult.nearby.length===0&&first.fresh.length===1&&
+ repeated.fresh.length===0&&!lowAccuracy.valid;
+ $('camera-sim-result').textContent=(pass?'PASS':'FAIL')+': Stationary simulation checked (1) out-of-range silence, (2) one in-range camera, (3) no duplicate warning, and (4) inaccurate GPS suppression. No real GPS was used.';
+ if(pass&&cameraAlertsOn&&navVoice)navSpeak('Simulation: reported license plate reader nearby. This is only a test.');
+ cameraBadge(pass?'Simulation passed':'Simulation failed');
+ cameraStatus(pass?'Stationary test finished. Live warnings still require GPS guidance and public camera coverage.':'Test checks did not all pass.',!pass);
+};
 
 // Tile decoding for MVT point geometry. Unlike vector tile canvas scaling,
 // fixed-size circles are redrawn in screen pixels even at high map zoom.
