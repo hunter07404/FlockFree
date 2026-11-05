@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d171c">
+  <meta name="description" content="FlockFree public ALPR camera map prototype. Explore OpenStreetMap camera records and keep personal reports in your browser.">
+  <title>FlockFree | Public Camera Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    :root { color-scheme:dark; --bg:#0d171c; --surface:#17272e; --edge:#345057; --green:#6ce1b6; --muted:#b1c3c7; --ink:#f4fcf9; --orange:#ffbb7b; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    button,input { font:inherit; }
+    button { cursor:pointer; }
+    button:focus-visible,input:focus-visible { outline:3px solid var(--green); outline-offset:2px; }
+    .shell { max-width:1000px; margin:auto; padding:16px 14px 40px; }
+    .brandline { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; }
+    .brand { display:flex; gap:9px; align-items:center; font-weight:850; letter-spacing:-.7px; font-size:27px; }
+    .shield { color:#05261d; background:var(--green); border-radius:12px; display:grid; place-items:center; width:39px; height:39px; font-size:25px; }
+    .brand em { color:var(--green); font-style:normal; }
+    .pill { background:#1d3c35; border:1px solid #426b60; color:#a5efcf; border-radius:30px; padding:6px 10px; font-size:11px; font-weight:750; }
+    .eyebrow { font-size:12px; color:var(--muted); margin:9px 0 20px; }
+    .card { background:var(--surface); border:1px solid #2e4a52; border-radius:17px; padding:14px; margin:12px 0; }
+    .row { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+    .search { display:flex; align-items:stretch; gap:8px; }
+    .search input { flex:1; min-width:0; color:white; background:#0e1d24; border:1px solid #426069; border-radius:12px; padding:13px 12px; font-size:16px; }
+    .btn { min-height:43px; background:#2b444c; border:1px solid #48656e; color:white; padding:10px 13px; border-radius:11px; font-weight:700; }
+    .btn.primary { background:var(--green); border-color:var(--green); color:#08251e; }
+    .btn.selected { border-color:var(--green); color:var(--green); background:#1c3736; }
+    .btn:disabled { opacity:.55; cursor:not-allowed; }
+    .help { color:var(--muted); font-size:12px; line-height:1.5; }
+    h2 { font-size:16px; margin:2px 0 9px; }
+    .map-head { display:flex; align-items:center; justify-content:space-between; gap:9px; }
+    #map { height: min(59vh, 550px); min-height:330px; width:100%; background:#24434b; border-radius:13px; border:1px solid #43646b; touch-action:pan-x pan-y; z-index:1; }
+    .map-actions { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+    #status { padding:11px 12px; background:#10242b; border:1px solid #35545c; border-radius:10px; font-size:13px; line-height:1.5; color:#c6dddf; min-height:42px; }
+    #status.warning { color:#ffcc9d; border-color:#79593e; }
+    .legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; font-size:12px; color:#bcd1d0; }
+    .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; }
+    .filter { margin:11px 0; }
+    .filter .btn { min-height:39px; padding:8px 10px; font-size:12px; }
+    .details { min-height:76px; font-size:14px; line-height:1.55; color:#d6e7e6; }
+    .details a { color:#93d5f2; }
+    .details strong { color:#fff; }
+    .mini { color:#a9bec0; font-size:12px; }
+    .privacy { display:flex; gap:10px; padding:12px; border:1px solid #3c5f54; background:#18332d; border-radius:13px; font-size:13px; line-height:1.5; color:#c3e7d5; }
+    footer { text-align:center; font-size:12px; color:#90aab0; margin:18px 0; line-height:1.5; }
+    .leaflet-container { background:#203e4b; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background:#163039; color:#edf8f7; }
+    .leaflet-popup-content { line-height:1.5; }
+    .leaflet-control-attribution { color:#333 !important; }
+    @media(max-width:580px){ .shell{padding:13px 11px 30px;} .brand{font-size:24px;} .search{flex-wrap:wrap;} .search input{flex-basis:100%;} .search button{flex:1;} #map{height:54vh;min-height:330px;} .map-actions .btn{flex:1 1 43%;} }
+  </style>
+</head>
+<body>
+<main class="shell">
+  <div class="brandline">
+    <div class="brand"><span class="shield" aria-hidden="true">⬡</span><span>Flock<em>Free</em></span></div>
+    <span class="pill">PUBLIC MAP • BETA 0.3</span>
+  </div>
+  <p class="eyebrow">Explore publicly mapped license-plate readers. Camera records may be incomplete, outdated, or incorrectly labeled.</p>
+  <section class="card" aria-label="Find a location">
+    <h2>Find a place</h2>
+    <form class="search" id="search-form">
+      <input type="search" id="place" placeholder="City, address, or ZIP code" aria-label="Search for a place" required maxlength="140">
+      <button class="btn primary" id="search-btn" type="submit">Search</button>
+      <button class="btn" id="locate" type="button">My location</button>
+    </form>
+    <p class="help">Search uses OpenStreetMap Nominatim. “My location” asks for your permission and is not saved by FlockFree.</p>
+  </section>
+  <section class="card">
+    <div class="map-head"><h2>Camera map</h2><span class="pill" id="camera-count">No cameras loaded</span></div>
+    <div id="map" role="application" aria-label="Interactive map of streets and publicly mapped ALPR cameras"></div>
+    <div class="map-actions">
+      <button id="load" class="btn primary" type="button">Load mapped cameras</button>
+      <button id="report" class="btn" type="button">Report at map center</button>
+      <button id="clear-reports" class="btn" type="button">Clear my reports</button>
+    </div>
+    <div id="status" role="status" aria-live="polite">Search for a city or choose “My location,” zoom in, then tap “Load mapped cameras.”</div>
+    <div class="legend"><span><i class="dot" style="background:#6ce1b6"></i>Flock-tagged in OSM</span><span><i class="dot" style="background:#ffbb7b"></i>Other mapped ALPR</span><span><i class="dot" style="background:#8db5ff"></i>My unverified reports</span></div>
+    <div class="row filter" role="group" aria-label="Filter camera markers">
+      <button class="btn selected" data-filter="all" type="button">All</button>
+      <button class="btn" data-filter="flock" type="button">Flock-tagged</button>
+      <button class="btn" data-filter="other" type="button">Other ALPR</button>
+      <button class="btn" data-filter="mine" type="button">My reports</button>
+    </div>
+    <p class="help">“Flock-tagged” means the public map record identifies Flock in an operator or manufacturer field. It is not independent verification.</p>
+  </section>
+  <section class="card">
+    <h2>Camera details</h2>
+    <div class="details" id="details">Tap a camera marker to inspect the source record.</div>
+  </section>
+  <div class="privacy"><span style="font-size:22px">♢</span><span><strong>Prototype privacy:</strong> No account or route history. The map provider receives map tile requests; location searches and camera-data requests go to external public services. Personal camera reports stay only in this browser.</span></div>
+  <footer>FlockFree v0.3 • OpenStreetMap contributors • Testing only • No turn-by-turn navigation or camera-free-route guarantees</footer>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = str => String(str == null ? '' : str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const status = (message, warning=false) => { $('status').textContent=message; $('status').classList.toggle('warning',warning); };
+  if (!window.L) { status('The map library did not load. Check your internet connection and refresh.', true); return; }
+  const map = L.map('map', {zoomControl:true, preferCanvas:true}).setView([39.3,-98.5],4);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+  const mappedLayer=L.layerGroup().addTo(map), mineLayer=L.layerGroup().addTo(map);
+  let mapped=[], filter='all', userPosition=null, lastQueryAt=0, loading=false, markerPosition=null;
+  const reportsKey='flockfree_private_reports_v02';
+  function getReports(){ try {const r=JSON.parse(localStorage.getItem(reportsKey)||'[]');return Array.isArray(r)?r.filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon)).slice(0,100):[];}catch(_){return [];} }
+  let mine=getReports();
+  function saveReports(){try{localStorage.setItem(reportsKey,JSON.stringify(mine));return true;}catch(_){return false;}}
+  function kind(record){ if(record.mine) return 'mine'; const t=record.tags||{}; return /flock/i.test([t.manufacturer,t.operator,t.brand,t.name].filter(Boolean).join(' '))?'flock':'other'; }
+  function count(){const records=[...mapped,...mine];const n=records.filter(r=>filter==='all'||kind(r)===filter).length; $('camera-count').textContent=`${n} shown`;} 
+  function showDetails(r){const t=r.tags||{}; const type=kind(r); const category=type==='mine'?'Personal, unverified report':type==='flock'?'Flock-tagged public record':'Publicly mapped ALPR'; const manufacturer=t.manufacturer||t.operator||t.brand||'Not specified'; const source = r.mine?'Stored locally in this browser':`<a target="_blank" rel="noopener noreferrer" href="https://www.openstreetmap.org/${r.osmType}/${r.osmId}">View OpenStreetMap record</a>`;
+    $('details').innerHTML=`<strong>${esc(category)}</strong><div>${esc(r.note||t.name||'Camera location')}</div><div>Operator/manufacturer: ${esc(r.mine?'Unverified':manufacturer)}</div><div>Coordinates: ${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}</div><div class="mini">Source: ${source}</div><p class="mini">Presence and accuracy have not been independently verified.</p>`;
+  }
+  function draw(){mappedLayer.clearLayers();mineLayer.clearLayers();const visible=[...mapped,...mine].filter(r=>filter==='all'||kind(r)===filter);for(const r of visible){const k=kind(r),color=k==='flock'?'#6ce1b6':k==='mine'?'#8db5ff':'#ffbb7b'; const layer=L.circleMarker([r.lat,r.lon],{radius:10,color:'#0f2930',weight:3,fillColor:color,fillOpacity:1,interactive:true});layer.on('click',()=>showDetails(r));layer.addTo(r.mine?mineLayer:mappedLayer);} count();}
+  document.querySelectorAll('[data-filter]').forEach(btn=>btn.addEventListener('click',()=>{filter=btn.dataset.filter;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('selected',b===btn));draw();}));
+  $('search-form').addEventListener('submit',async event=>{event.preventDefault();const term=$('place').value.trim();if(!term)return;const button=$('search-btn');button.disabled=true;status('Searching for that place…');try{
+    const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(term);
+    const response=await fetch(url,{headers:{'Accept':'application/json'}});if(!response.ok)throw new Error('Search service unavailable');const results=await response.json();if(!Array.isArray(results)||!results.length){status('No matching location found. Try a city and state.',true);return;}
+    const place=results[0];if(place.boundingbox){const b=place.boundingbox.map(Number);map.fitBounds([[b[0],b[2]],[b[1],b[3]]],{maxZoom:15});}else map.setView([Number(place.lat),Number(place.lon)],14);
+    status('Location found. Zoom in to street level, then tap “Load mapped cameras.”');
+  }catch(e){status('Search could not connect. Check your connection and try again.',true);}finally{button.disabled=false;}});
+  $('locate').addEventListener('click',()=>{
+    if(!navigator.geolocation){status('This browser does not support location access.',true);return;}
+    status('Requesting your location. Please approve the iPhone location prompt if shown…');
+    navigator.geolocation.getCurrentPosition(p=>{
+      const point=[p.coords.latitude,p.coords.longitude];map.setView(point,15);if(userPosition)map.removeLayer(userPosition);
+      userPosition=L.circleMarker(point,{radius:8,color:'#fff',weight:3,fillColor:'#538fff',fillOpacity:1}).addTo(map).bindPopup('Your approximate GPS position. Not stored by FlockFree.');
+      status('Location found. Tap “Load mapped cameras” to look for publicly mapped ALPRs in this area.');
+    },err=>{status(err.code===1?'Location permission was denied. You can still search by city.':'Unable to determine your location. Try searching for a city.',true);},{enableHighAccuracy:false,timeout:12000,maximumAge:120000});
+  });
+  $('load').addEventListener('click',async()=>{
+    if(loading)return;
+    if(map.getZoom()<12){status('Zoom in closer (at least street-level zoom 12) before loading camera records.',true);return;}
+    if(Date.now()-lastQueryAt<5000){status('Please allow a few seconds between camera-data requests.',true);return;}
+    lastQueryAt=Date.now();loading=true;$('load').disabled=true;status('Checking OpenStreetMap public ALPR records for this map area…');
+    const bounds=map.getBounds(),bbox=[bounds.getSouth().toFixed(5),bounds.getWest().toFixed(5),bounds.getNorth().toFixed(5),bounds.getEast().toFixed(5)].join(',');
+    const query=`[out:json][timeout:18];(node["man_made"="surveillance"]["surveillance:type"="ALPR"](${bbox});way["man_made"="surveillance"]["surveillance:type"="ALPR"](${bbox}););out center 500;`;
+    // Overpass is a community service with occasional timeouts and rate limits.
+    // Use an independent fallback. API errors must never be shown as zero cameras.
+    const endpoints=[
+      'https://overpass.private.coffee/api/interpreter',
+      'https://overpass-api.de/api/interpreter'
+    ];
+    async function lookup(endpoint) {
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),20000);
+      try {
+        const response=await fetch(endpoint+'?data='+encodeURIComponent(query),{
+          signal:controller.signal,
+          headers:{'Accept':'application/json'}
+        });
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        const payload=await response.json();
+        if(!payload||!Array.isArray(payload.elements))throw new Error('Unexpected response');
+        return payload.elements;
+      } finally {clearTimeout(timer);}
+    }
+    try {
+      let elements=null;
+      for(let index=0;index<endpoints.length;index++) {
+        try {
+          if(index>0)status('Primary camera database unavailable. Checking a backup server…');
+          elements=await lookup(endpoints[index]);
+          break;
+        } catch(error) {
+          console.warn('FlockFree camera data request failed:',index,error);
+        }
+      }
+      if(elements===null)throw new Error('Camera databases unavailable');
+      mapped=elements.map(x=>{const pos=x.center||x;return {lat:Number(pos.lat),lon:Number(pos.lon),tags:x.tags||{},osmType:x.type,osmId:x.id};}).filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon));
+      draw();
+      status(mapped.length?`${mapped.length} publicly mapped ALPR record(s) found here. Tap a marker for source details; records are unverified.`:'The camera database responded, but returned no ALPR records for this map area. That does not mean no cameras are present.');
+    }catch(error){
+      status('Both public camera-data services are unavailable. Please try again later. The map and GPS still work; camera coverage cannot be assessed right now.',true);
+    }finally{
+      loading=false;
+      $('load').disabled=false;
+    }
+  });
+  $('report').addEventListener('click',()=>{
+    const p=map.getCenter();markerPosition={lat:p.lat,lon:p.lng};
+    const note=prompt('Optional note for your personal camera report (for example, street or nearby landmark):','');
+    if(note===null){status('Report cancelled.');return;}
+    const item={mine:true,lat:markerPosition.lat,lon:markerPosition.lon,note:note.trim().slice(0,120)||'Unverified personal report',created:Date.now()};mine.push(item);mine=mine.slice(-100);const saved=saveReports();draw();map.setView([item.lat,item.lon],Math.max(map.getZoom(),14));showDetails(item);
+    status(saved?'Your unverified report was saved only in this browser. It was not submitted to OpenStreetMap or a public database.':'Report shown for this session, but your browser could not save it locally.',!saved);
+  });
+  $('clear-reports').addEventListener('click',()=>{
+    if(!mine.length){status('You do not have any personal camera reports to clear.');return;}
+    if(!confirm('Delete all personal camera reports saved in this browser?'))return;
+    mine=[];saveReports();draw();$('details').textContent='Your local reports were cleared.';status('Personal camera reports removed from this browser.');
+  });
+  draw();
+})();
+</script>
+</body>
+</html>
